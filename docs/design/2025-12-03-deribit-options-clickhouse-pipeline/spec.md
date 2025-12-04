@@ -1,9 +1,11 @@
 ---
 adr: 2025-12-03-deribit-options-clickhouse-pipeline
 source: ~/.claude/plans/partitioned-booping-cerf.md
-implementation-status: in_progress
-phase: phase-1
+implementation-status: completed
+phase: released
 last-updated: 2025-12-03
+release: v0.1.0
+pypi: https://pypi.org/project/gapless-deribit-clickhouse/
 ---
 
 # Implementation Spec: Deribit Options ClickHouse Pipeline
