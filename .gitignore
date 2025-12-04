@@ -50,3 +50,6 @@ Thumbs.db
 
 # Temporary
 tmp/
+
+# Node.js (for semantic-release)
+node_modules/

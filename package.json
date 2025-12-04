@@ -1,0 +1,28 @@
+{
+  "name": "gapless-deribit-clickhouse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deribit options data pipeline with ClickHouse storage.",
+  "scripts": {
+    "release": "GH_TOKEN=$(gh auth token) npx semantic-release --no-ci",
+    "release:dry": "GH_TOKEN=$(gh auth token) npx semantic-release --no-ci --dry-run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/terrylica/gapless-deribit-clickhouse.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/terrylica/gapless-deribit-clickhouse/issues"
+  },
+  "homepage": "https://github.com/terrylica/gapless-deribit-clickhouse#readme",
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.2",
+    "@semantic-release/release-notes-generator": "^14.1.0",
+    "semantic-release": "^25.0.2"
+  }
+}
