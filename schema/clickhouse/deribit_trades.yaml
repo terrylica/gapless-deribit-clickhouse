@@ -1,0 +1,159 @@
+# JSON Schema (Draft 2020-12) as YAML
+# This is the SINGLE SOURCE OF TRUTH for deribit_options.trades
+# All Python types, DDL, and documentation are generated from this file.
+#
+# ADR: 2025-12-03-deribit-options-clickhouse-pipeline
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://gapless-deribit-clickhouse/schema/deribit_options/trades"
+
+title: "Deribit Options Trades"
+description: |
+  Historical trade data for Deribit options.
+  Backfillable from 2018 via history.deribit.com API.
+  Used for options flow analysis and GEX calculation.
+
+# ClickHouse-specific metadata (custom extension)
+x-clickhouse:
+  database: deribit_options
+  table: trades
+  engine: ReplacingMergeTree()
+  order_by: [underlying, expiry, strike, option_type, trade_id]
+  partition_by: "toYYYYMM(timestamp)"
+  settings:
+    index_granularity: 8192
+
+type: object
+
+required:
+  - trade_id
+  - instrument_name
+  - timestamp
+  - price
+  - amount
+  - direction
+  - underlying
+  - expiry
+  - strike
+  - option_type
+
+properties:
+  trade_id:
+    type: string
+    description: "Unique trade identifier from Deribit"
+    x-clickhouse:
+      type: "String"
+      not_null: true
+    x-pandas:
+      dtype: "str"
+
+  instrument_name:
+    type: string
+    description: "Full instrument name (e.g., BTC-27DEC24-100000-C)"
+    x-clickhouse:
+      type: "String"
+      not_null: true
+    x-pandas:
+      dtype: "str"
+
+  timestamp:
+    type: string
+    format: date-time
+    description: "Trade timestamp with millisecond precision"
+    x-clickhouse:
+      type: "DateTime64(3)"
+      not_null: true
+    x-pandas:
+      dtype: "datetime64[ns, UTC]"
+
+  price:
+    type: number
+    minimum: 0
+    description: "Trade price in USD"
+    x-clickhouse:
+      type: "Float64"
+      not_null: true
+    x-pandas:
+      dtype: "float64"
+
+  amount:
+    type: number
+    description: "Contract amount (can be negative for sells)"
+    x-clickhouse:
+      type: "Float64"
+      not_null: true
+    x-pandas:
+      dtype: "float64"
+
+  direction:
+    type: string
+    enum: ["buy", "sell"]
+    description: "Trade direction"
+    x-clickhouse:
+      type: "String"
+      not_null: true
+    x-pandas:
+      dtype: "str"
+
+  iv:
+    type: ["number", "null"]
+    minimum: 0
+    description: "Implied volatility at trade time"
+    x-clickhouse:
+      type: "Nullable(Float64)"
+    x-pandas:
+      dtype: "Float64"
+
+  index_price:
+    type: ["number", "null"]
+    minimum: 0
+    description: "Underlying index price at trade time"
+    x-clickhouse:
+      type: "Nullable(Float64)"
+    x-pandas:
+      dtype: "Float64"
+
+  # Derived fields (parsed from instrument_name)
+  underlying:
+    type: string
+    enum: ["BTC", "ETH"]
+    description: "Underlying asset (derived from instrument_name)"
+    x-clickhouse:
+      type: "String"
+      not_null: true
+    x-pandas:
+      dtype: "str"
+    x-derived: true
+
+  expiry:
+    type: string
+    format: date
+    description: "Option expiration date (derived from instrument_name)"
+    x-clickhouse:
+      type: "Date"
+      not_null: true
+    x-pandas:
+      dtype: "datetime64[ns]"
+    x-derived: true
+
+  strike:
+    type: number
+    minimum: 0
+    description: "Strike price (derived from instrument_name)"
+    x-clickhouse:
+      type: "Float64"
+      not_null: true
+    x-pandas:
+      dtype: "float64"
+    x-derived: true
+
+  option_type:
+    type: string
+    enum: ["C", "P"]
+    description: "Option type: Call (C) or Put (P) (derived from instrument_name)"
+    x-clickhouse:
+      type: "String"
+      not_null: true
+    x-pandas:
+      dtype: "str"
+    x-derived: true
