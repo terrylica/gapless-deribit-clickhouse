@@ -11,7 +11,7 @@ Usage:
     sources = get_data_sources()
     caps = get_capabilities()
 
-ADR: 2025-12-03-deribit-options-clickhouse-pipeline
+ADR: 2025-12-05-trades-only-architecture-pivot
 """
 
 from __future__ import annotations
@@ -66,20 +66,6 @@ def get_data_sources() -> list[DataSource]:
                 "Historical price analysis",
             ],
         ),
-        DataSource(
-            name="Deribit Options Ticker Snapshots",
-            description="Point-in-time Open Interest and Greeks for BTC and ETH options",
-            table="deribit_options.ticker_snapshots",
-            key_fields=["instrument_name", "open_interest", "delta", "gamma", "vega", "theta"],
-            time_range="Forward-only (no historical backfill)",
-            update_frequency="Every 5 minutes",
-            use_cases=[
-                "Gamma Exposure (GEX) calculation",
-                "Options positioning analysis",
-                "Greeks-based hedging",
-                "Open Interest trends",
-            ],
-        ),
     ]
 
 
@@ -107,27 +93,14 @@ def get_capabilities() -> list[Capability]:
             },
         ),
         Capability(
-            name="Fetch Ticker Snapshots",
-            function="gapless_deribit_clickhouse.fetch_ticker_snapshots()",
-            description="Query Open Interest and Greeks snapshots",
-            example='fetch_ticker_snapshots(underlying="BTC", start="2024-12-01")',
+            name="Collect Trades",
+            function="gapless_deribit_clickhouse.collect_trades()",
+            description="Collect historical trades from Deribit to ClickHouse",
+            example='collect_trades(underlying="BTC", start="2024-01-01")',
             parameters={
                 "underlying": "BTC or ETH",
-                "start": "Start date (inclusive)",
-                "end": "End date (inclusive)",
-                "option_type": "C (call) or P (put)",
-                "expiry": "Filter by expiration date",
-                "strike": "Filter by strike price",
-                "limit": "Maximum rows",
-            },
-        ),
-        Capability(
-            name="Get Active Instruments",
-            function="gapless_deribit_clickhouse.get_active_instruments()",
-            description="List currently active option instruments",
-            example='get_active_instruments(underlying="BTC")',
-            parameters={
-                "underlying": "BTC or ETH",
+                "start": "Start date for collection",
+                "end": "End date for collection (optional)",
             },
         ),
     ]
@@ -155,22 +128,6 @@ def get_schema_info() -> dict[str, Any]:
             "strike": "Strike price (derived)",
             "option_type": "C or P (derived)",
         },
-        "ticker_fields": {
-            "instrument_name": "Full instrument name",
-            "timestamp": "Snapshot time (ms precision)",
-            "open_interest": "Current OI in contracts",
-            "delta": "Option delta (-1 to 1)",
-            "gamma": "Option gamma",
-            "vega": "Option vega",
-            "theta": "Option theta",
-            "mark_iv": "Mark implied volatility",
-            "mark_price": "Mark price in USD",
-            "index_price": "Underlying price",
-            "underlying": "BTC or ETH (derived)",
-            "expiry": "Option expiration (derived)",
-            "strike": "Strike price (derived)",
-            "option_type": "C or P (derived)",
-        },
         "instrument_format": "{UNDERLYING}-{DDMMMYY}-{STRIKE}-{C|P}",
         "instrument_examples": [
             "BTC-27DEC24-100000-C",
@@ -191,18 +148,13 @@ gapless-deribit-clickhouse: Deribit Options Data Pipeline
 
 Data Sources:
   - trades: Historical options trades (2018-present, backfillable)
-  - ticker_snapshots: OI + Greeks (forward-only, collected every 5 min)
 
 Key Capabilities:
   - fetch_trades(): Query historical trade data
-  - fetch_ticker_snapshots(): Query OI and Greeks snapshots
-  - get_active_instruments(): List active option contracts
+  - collect_trades(): Collect trades from Deribit API to ClickHouse
 
 Instrument Format: {UNDERLYING}-{DDMMMYY}-{STRIKE}-{C|P}
   Example: BTC-27DEC24-100000-C = BTC call, $100k strike, expires Dec 27 2024
 
-IMPORTANT: Open Interest cannot be reconstructed from trades.
-  Historical OI data is not available - ticker_snapshots is forward-only.
-
-For GEX calculation, use ticker_snapshots for OI and delta per strike.
+ADR: 2025-12-05-trades-only-architecture-pivot
 """.strip()

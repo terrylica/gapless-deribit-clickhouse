@@ -144,7 +144,9 @@ def collect_trades(
     else:
         end_ts = int(datetime.now().timestamp() * 1000)
 
-    logger.info(f"Collecting {currency} options trades from {start_date or '2018-01-01'} to {end_date or 'now'}")
+    start_label = start_date or "2018-01-01"
+    end_label = end_date or "now"
+    logger.info(f"Collecting {currency} options trades from {start_label} to {end_label}")
 
     all_trades: list[dict[str, Any]] = []
     current_end_ts = end_ts

@@ -1,16 +1,19 @@
 ---
 adr: 2025-12-03-deribit-options-clickhouse-pipeline
 source: ~/.claude/plans/partitioned-booping-cerf.md
-implementation-status: completed
+implementation-status: superseded
+superseded-by: 2025-12-05-trades-only-architecture-pivot
 phase: released
-last-updated: 2025-12-03
+last-updated: 2025-12-05
 release: v0.1.0
 pypi: https://pypi.org/project/gapless-deribit-clickhouse/
 ---
 
 # Implementation Spec: Deribit Options ClickHouse Pipeline
 
-**ADR**: [Deribit Options Data Pipeline](/docs/adr/2025-12-03-deribit-options-clickhouse-pipeline.md)
+> **⚠️ SUPERSEDED**: This spec has been superseded by [2025-12-05-trades-only-architecture-pivot](/docs/design/2025-12-05-trades-only-architecture-pivot/spec.md). The ticker/OI/Greeks functionality was removed in v0.2.0.
+
+**ADR**: [Deribit Options Data Pipeline](/docs/adr/2025-12-03-deribit-options-clickhouse-pipeline.md) (superseded)
 
 ## Summary
 

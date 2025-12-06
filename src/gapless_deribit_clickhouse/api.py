@@ -1,9 +1,8 @@
 """
 Public API for gapless-deribit-clickhouse.
 
-This module provides the main programmatic interface for:
-- Deribit options trade data (historical from 2018)
-- Deribit options ticker snapshots (OI + Greeks, forward-only)
+This module provides the main programmatic interface for
+Deribit options trade data (historical from 2018).
 
 Usage:
     import gapless_deribit_clickhouse as gdch
@@ -15,13 +14,7 @@ Usage:
         end="2024-01-31",
     )
 
-    # Fetch ticker snapshots (OI + Greeks)
-    df = gdch.fetch_ticker_snapshots(
-        underlying="BTC",
-        start="2024-12-01",
-    )
-
-ADR: 2025-12-03-deribit-options-clickhouse-pipeline
+ADR: 2025-12-05-trades-only-architecture-pivot
 """
 
 from __future__ import annotations
@@ -30,6 +23,44 @@ import pandas as pd
 
 from gapless_deribit_clickhouse.clickhouse.connection import get_client
 from gapless_deribit_clickhouse.exceptions import QueryError
+
+
+def _validate_fetch_params(
+    start: str | None,
+    end: str | None,
+    limit: int | None,
+) -> None:
+    """
+    Validate fetch parameters before database query.
+
+    ADR: 2025-12-05-trades-only-architecture-pivot - fail-fast validation
+
+    Raises:
+        ValueError: If parameters are invalid
+    """
+    # Rule 1: At least one constraint required
+    if start is None and end is None and limit is None:
+        raise ValueError(
+            "At least one constraint required: start, end, or limit. "
+            "Examples:\n"
+            "  fetch_trades(limit=1000)\n"
+            "  fetch_trades(start='2024-01-01')\n"
+            "  fetch_trades(start='2024-01-01', end='2024-01-31')"
+        )
+
+    # Rule 2: Empty strings are explicit errors
+    if start == "":
+        raise ValueError("start cannot be empty string; use None instead")
+    if end == "":
+        raise ValueError("end cannot be empty string; use None instead")
+
+    # Rule 3: Date ordering (if both specified)
+    if start and end and start > end:
+        raise ValueError(f"start ({start}) must be <= end ({end})")
+
+    # Rule 4: Negative limit
+    if limit is not None and limit < 0:
+        raise ValueError(f"limit must be non-negative, got {limit}")
 
 
 def _normalize_timestamp(ts_str: str, is_end: bool = False) -> str:
@@ -90,16 +121,11 @@ def fetch_trades(
         DataFrame with trade data
 
     Raises:
+        ValueError: If parameters are invalid
         QueryError: If query fails
     """
-    if start is None and end is None and limit is None:
-        raise QueryError(
-            "Must specify at least one of: start, end, or limit. "
-            "Examples:\n"
-            "  fetch_trades(limit=1000)\n"
-            "  fetch_trades(start='2024-01-01')\n"
-            "  fetch_trades(start='2024-01-01', end='2024-01-31')"
-        )
+    # ADR: 2025-12-05-trades-only-architecture-pivot - fail-fast validation
+    _validate_fetch_params(start, end, limit)
 
     conditions: list[str] = []
     params: dict[str, str | float | int] = {}
@@ -146,114 +172,3 @@ def fetch_trades(
         return result.result_set_as_dataframe()
     except Exception as e:
         raise QueryError(f"Failed to fetch trades: {e}") from e
-
-
-def fetch_ticker_snapshots(
-    underlying: str | None = None,
-    start: str | None = None,
-    end: str | None = None,
-    option_type: str | None = None,
-    expiry: str | None = None,
-    strike: float | None = None,
-    limit: int | None = None,
-) -> pd.DataFrame:
-    """
-    Fetch ticker snapshots (OI + Greeks) from ClickHouse.
-
-    Args:
-        underlying: Filter by underlying asset ("BTC" or "ETH")
-        start: Start date/timestamp (inclusive)
-        end: End date/timestamp (inclusive)
-        option_type: Filter by option type ("C" or "P")
-        expiry: Filter by expiration date (YYYY-MM-DD)
-        strike: Filter by strike price
-        limit: Maximum rows to return
-
-    Returns:
-        DataFrame with ticker snapshot data
-
-    Raises:
-        QueryError: If query fails
-    """
-    if start is None and end is None and limit is None:
-        raise QueryError(
-            "Must specify at least one of: start, end, or limit. "
-            "Examples:\n"
-            "  fetch_ticker_snapshots(limit=1000)\n"
-            "  fetch_ticker_snapshots(start='2024-12-01')"
-        )
-
-    conditions: list[str] = []
-    params: dict[str, str | float | int] = {}
-
-    if underlying:
-        conditions.append("underlying = {underlying:String}")
-        params["underlying"] = underlying
-
-    if start:
-        conditions.append("timestamp >= {start:DateTime64(3)}")
-        params["start"] = _normalize_timestamp(start, is_end=False)
-
-    if end:
-        conditions.append("timestamp < {end:DateTime64(3)}")
-        params["end"] = _normalize_timestamp(end, is_end=True)
-
-    if option_type:
-        conditions.append("option_type = {option_type:String}")
-        params["option_type"] = option_type
-
-    if expiry:
-        conditions.append("expiry = {expiry:Date}")
-        params["expiry"] = expiry
-
-    if strike:
-        conditions.append("strike = {strike:Float64}")
-        params["strike"] = strike
-
-    where_clause = " AND ".join(conditions) if conditions else "1=1"
-    limit_clause = f"LIMIT {limit}" if limit else ""
-
-    query = f"""
-        SELECT *
-        FROM deribit_options.ticker_snapshots
-        WHERE {where_clause}
-        ORDER BY timestamp DESC
-        {limit_clause}
-    """
-
-    client = get_client()
-
-    try:
-        result = client.query(query, parameters=params)
-        return result.result_set_as_dataframe()
-    except Exception as e:
-        raise QueryError(f"Failed to fetch ticker snapshots: {e}") from e
-
-
-def get_active_instruments(underlying: str = "BTC") -> list[str]:
-    """
-    Get list of currently active option instruments.
-
-    Queries the most recent ticker snapshot to find active instruments.
-
-    Args:
-        underlying: "BTC" or "ETH"
-
-    Returns:
-        List of instrument names
-    """
-    query = """
-        SELECT DISTINCT instrument_name
-        FROM deribit_options.ticker_snapshots
-        WHERE underlying = {underlying:String}
-          AND timestamp >= now() - INTERVAL 1 HOUR
-        ORDER BY instrument_name
-    """
-
-    client = get_client()
-
-    try:
-        result = client.query(query, parameters={"underlying": underlying})
-        return [row[0] for row in result.result_rows]
-    except Exception as e:
-        raise QueryError(f"Failed to get active instruments: {e}") from e

@@ -5,9 +5,9 @@ Deribit options data pipeline with ClickHouse storage.
 ## Features
 
 - **Historical trades**: Backfillable from 2018 via `history.deribit.com`
-- **Ticker snapshots**: Point-in-time OI + Greeks (forward-only collection)
 - **Schema-first**: YAML schemas generate types, DDL, and documentation
 - **Python API**: Clean interface for querying options data
+- **BTC + ETH options**: Focused on Deribit options trading data
 
 ## Installation
 
@@ -28,14 +28,11 @@ df = gdch.fetch_trades(
     option_type="C"  # Calls only
 )
 
-# Fetch ticker snapshots (OI + Greeks)
-df = gdch.fetch_ticker_snapshots(
+# Collect trades to ClickHouse
+gdch.collect_trades(
     underlying="BTC",
-    start="2024-12-01"
+    start="2024-01-01"
 )
-
-# Get active instruments
-instruments = gdch.get_active_instruments(underlying="BTC")
 ```
 
 ## Data Sources
@@ -55,21 +52,6 @@ instruments = gdch.get_active_instruments(underlying="BTC")
 | expiry          | Date       | Option expiration (derived) |
 | strike          | Float64    | Strike price (derived)      |
 | option_type     | String     | C or P (derived)            |
-
-### Ticker Snapshots Table
-
-| Field           | Type       | Description                  |
-| --------------- | ---------- | ---------------------------- |
-| instrument_name | String     | e.g., BTC-27DEC24-100000-C   |
-| timestamp       | DateTime64 | Snapshot time (ms precision) |
-| open_interest   | Float64    | Current OI in contracts      |
-| delta           | Float64    | Option delta (-1 to 1)       |
-| gamma           | Float64    | Option gamma                 |
-| vega            | Float64    | Option vega                  |
-| theta           | Float64    | Option theta                 |
-| mark_iv         | Float64    | Mark implied volatility      |
-
-**IMPORTANT**: Open Interest cannot be reconstructed from trades. The ticker_snapshots table requires forward-only collection.
 
 ## Instrument Name Format
 
@@ -119,50 +101,32 @@ ruff check src/
 ## Architecture
 
 ```
-📊 Deribit Options Data Pipeline
-
-   ┌─────────────────────┐
-   │ history.deribit.com │  ─┐
-   │  /get_last_trades   │   │
-   └─────────────────────┘   │
-             │               │
-             ∨               │
-   ┌─────────────────────┐   │
-   │   TradesCollector   │   │  Historical
-   │    (Historical)     │   │  Backfill
-   └─────────────────────┘   │
-             │               │
-             ∨               │
-   ╔═════════════════════╗   │
-   ║ deribit_options     ║ <─┘
-   ║      .trades        ║
-   ╚═════════════════════╝
-             │
-             ∨
-   ╭─────────────────────╮
-   │     Python API      │
-   │   fetch_trades()    │
-   │  fetch_snapshots()  │
-   ╰─────────────────────╯
-             ∧
-             │
-   ╔═════════════════════╗
-   ║ deribit_options     ║ <─┐
-   ║ .ticker_snapshots   ║   │
-   ╚═════════════════════╝   │
-             ∧               │
-             │               │
-   ┌─────────────────────┐   │
-   │   TickerCollector   │   │  Forward-Only
-   │   (Forward-Only)    │   │  Collection
-   └─────────────────────┘   │
-             ∧               │
-             │               │
-   ┌─────────────────────┐   │
-   │   www.deribit.com   │  ─┘
-   │       /ticker       │
-   └─────────────────────┘
++---------------------+
+| history.deribit.com |
+|  /get_last_trades   |
++---------------------+
+          |
+          v
++---------------------+
+|   TradesCollector   |  Historical
+|    (Backfill)       |  Backfill
++---------------------+
+          |
+          v
++=====================+
+| deribit_options     |
+|      .trades        |
++=====================+
+          |
+          v
++---------------------+
+|     Python API      |
+|   fetch_trades()    |
+|  collect_trades()   |
++---------------------+
 ```
+
+ADR: [2025-12-05-trades-only-architecture-pivot](/docs/adr/2025-12-05-trades-only-architecture-pivot.md)
 
 ## License
 

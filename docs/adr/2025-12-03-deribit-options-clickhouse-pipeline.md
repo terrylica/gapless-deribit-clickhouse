@@ -1,5 +1,6 @@
 ---
-status: implemented
+status: superseded
+superseded-by: 2025-12-05-trades-only-architecture-pivot
 date: 2025-12-03
 decision-maker: Terry Li
 consulted:
@@ -15,6 +16,8 @@ perspectives: [UpstreamIntegration, BoundaryInterface, EcosystemArtifact]
 ---
 
 # ADR: Deribit Options Data Pipeline with ClickHouse Storage
+
+> **⚠️ SUPERSEDED**: This ADR has been superseded by [2025-12-05-trades-only-architecture-pivot](/docs/adr/2025-12-05-trades-only-architecture-pivot.md). The ticker/OI/Greeks functionality was removed in v0.2.0 in favor of a trades-only architecture.
 
 **Design Spec**: [Implementation Spec](/docs/design/2025-12-03-deribit-options-clickhouse-pipeline/spec.md)
 

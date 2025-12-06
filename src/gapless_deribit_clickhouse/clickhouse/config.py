@@ -103,7 +103,7 @@ def get_credentials() -> tuple[str, str, str]:
         f"    {ENV_USER}=<user>\n"
         f"    {ENV_PASSWORD}=<password>\n\n"
         "Option 2 (Recommended for production): Use Doppler service token\n"
-        f"  1. Get token from 1Password: Engineering vault → '{DOPPLER_PROJECT} Doppler Service Token'\n"
+        f"  1. Get token from 1Password: '{DOPPLER_PROJECT} Doppler Service Token'\n"
         "  2. doppler configure set token <token_from_1password>\n"
         f"  3. doppler setup --project {DOPPLER_PROJECT} --config {DOPPLER_CONFIG}\n\n"
         "Option 3: Set environment variables directly\n"

@@ -4,12 +4,12 @@ Integration tests for public API.
 These tests require ClickHouse credentials to be configured.
 Skip if credentials not available.
 
-ADR: 2025-12-03-deribit-options-clickhouse-pipeline
+ADR: 2025-12-05-trades-only-architecture-pivot
 """
 
 import pytest
 
-from gapless_deribit_clickhouse.exceptions import CredentialError, QueryError
+from gapless_deribit_clickhouse.exceptions import CredentialError
 
 
 @pytest.fixture
@@ -30,8 +30,37 @@ class TestFetchTrades:
         """fetch_trades requires at least one constraint."""
         from gapless_deribit_clickhouse.api import fetch_trades
 
-        with pytest.raises(QueryError, match="Must specify at least one"):
+        # ADR: 2025-12-05-trades-only-architecture-pivot - fail-fast validation
+        with pytest.raises(ValueError, match="At least one constraint required"):
             fetch_trades()
+
+    def test_empty_string_start_rejected(self):
+        """Empty string start is explicit error."""
+        from gapless_deribit_clickhouse.api import fetch_trades
+
+        with pytest.raises(ValueError, match="start cannot be empty string"):
+            fetch_trades(start="")
+
+    def test_empty_string_end_rejected(self):
+        """Empty string end is explicit error."""
+        from gapless_deribit_clickhouse.api import fetch_trades
+
+        with pytest.raises(ValueError, match="end cannot be empty string"):
+            fetch_trades(end="")
+
+    def test_date_ordering_validation(self):
+        """Start must be before or equal to end."""
+        from gapless_deribit_clickhouse.api import fetch_trades
+
+        with pytest.raises(ValueError, match="start .* must be <= end"):
+            fetch_trades(start="2024-02-01", end="2024-01-01")
+
+    def test_negative_limit_rejected(self):
+        """Negative limit is explicit error."""
+        from gapless_deribit_clickhouse.api import fetch_trades
+
+        with pytest.raises(ValueError, match="limit must be non-negative"):
+            fetch_trades(limit=-1)
 
     def test_with_limit(self, skip_without_credentials):
         """fetch_trades with limit returns DataFrame."""
@@ -44,42 +73,3 @@ class TestFetchTrades:
             assert "trade_id" in df.columns
             assert "instrument_name" in df.columns
             assert "underlying" in df.columns
-
-
-class TestFetchTickerSnapshots:
-    """Tests for fetch_ticker_snapshots function."""
-
-    def test_requires_constraint(self):
-        """fetch_ticker_snapshots requires at least one constraint."""
-        from gapless_deribit_clickhouse.api import fetch_ticker_snapshots
-
-        with pytest.raises(QueryError, match="Must specify at least one"):
-            fetch_ticker_snapshots()
-
-    def test_with_limit(self, skip_without_credentials):
-        """fetch_ticker_snapshots with limit returns DataFrame."""
-        from gapless_deribit_clickhouse.api import fetch_ticker_snapshots
-
-        df = fetch_ticker_snapshots(underlying="BTC", limit=10)
-
-        assert len(df) <= 10
-        if len(df) > 0:
-            assert "instrument_name" in df.columns
-            assert "open_interest" in df.columns
-            assert "delta" in df.columns
-
-
-class TestGetActiveInstruments:
-    """Tests for get_active_instruments function."""
-
-    def test_returns_list(self, skip_without_credentials):
-        """get_active_instruments returns list of strings."""
-        from gapless_deribit_clickhouse.api import get_active_instruments
-
-        instruments = get_active_instruments(underlying="BTC")
-
-        assert isinstance(instruments, list)
-        # May be empty if no recent snapshots
-        for inst in instruments:
-            assert isinstance(inst, str)
-            assert "BTC" in inst

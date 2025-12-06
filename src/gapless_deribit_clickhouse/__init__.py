@@ -1,9 +1,7 @@
 """
 gapless-deribit-clickhouse: Deribit options data pipeline with ClickHouse storage.
 
-This package provides:
-- Historical options trade data (backfillable from 2018)
-- Point-in-time OI and Greeks snapshots (forward-only)
+This package provides historical options trade data (backfillable from 2018).
 
 Quick Start:
     import gapless_deribit_clickhouse as gdch
@@ -11,28 +9,14 @@ Quick Start:
     # Fetch historical trades
     df = gdch.fetch_trades(underlying="BTC", start="2024-01-01")
 
-    # Fetch ticker snapshots (OI + Greeks)
-    df = gdch.fetch_ticker_snapshots(underlying="BTC", limit=1000)
+    # Collect trades to ClickHouse
+    gdch.collect_trades(underlying="BTC", start="2024-01-01")
 
-    # Get active instruments
-    instruments = gdch.get_active_instruments(underlying="BTC")
-
-IMPORTANT: Open Interest cannot be reconstructed from trades.
-The ticker_snapshots table is forward-only (no historical backfill).
-
-ADR: 2025-12-03-deribit-options-clickhouse-pipeline
+ADR: 2025-12-05-trades-only-architecture-pivot
 """
 
-from gapless_deribit_clickhouse.api import (
-    fetch_ticker_snapshots,
-    fetch_trades,
-    get_active_instruments,
-)
-from gapless_deribit_clickhouse.collectors import (
-    collect_ticker_snapshot,
-    collect_trades,
-    run_daemon,
-)
+from gapless_deribit_clickhouse.api import fetch_trades
+from gapless_deribit_clickhouse.collectors import collect_trades
 from gapless_deribit_clickhouse.exceptions import (
     APIError,
     ConfigurationError,
@@ -47,19 +31,21 @@ from gapless_deribit_clickhouse.exceptions import (
 from gapless_deribit_clickhouse.probe import describe, get_capabilities, get_data_sources
 from gapless_deribit_clickhouse.utils import parse_instrument
 
-__version__ = "0.1.0"
+# ADR: 2025-12-05-trades-only-architecture-pivot - dynamic version with fallback
+try:
+    from importlib.metadata import version as _get_version
+
+    __version__ = _get_version("gapless-deribit-clickhouse")
+except Exception:
+    __version__ = "0.1.0"  # Fallback for editable installs
 
 __all__ = [
     # Version
     "__version__",
     # Public API
     "fetch_trades",
-    "fetch_ticker_snapshots",
-    "get_active_instruments",
     # Collectors
     "collect_trades",
-    "collect_ticker_snapshot",
-    "run_daemon",
     # Utilities
     "parse_instrument",
     # Probe (AI discoverability)

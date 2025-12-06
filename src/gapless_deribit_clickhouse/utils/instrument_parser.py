@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from typing import Literal
 
 from gapless_deribit_clickhouse.exceptions import InstrumentParseError
