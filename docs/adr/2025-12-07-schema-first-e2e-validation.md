@@ -25,58 +25,96 @@ This ADR establishes a schema-first testing architecture following patterns from
 
 ### Before/After
 
-<!-- graph-easy source: before-after -->
+**Before**: No schema validation, scattered tests
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                  BEFORE                                     │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌──────────────┐       No validation       ┌──────────────────┐          │
-│   │ YAML Schema  │ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ▶ │ Live ClickHouse  │          │
-│   │  (static)    │                           │    (runtime)     │          │
-│   └──────────────┘                           └──────────────────┘          │
-│                                                                             │
-│   ┌──────────────┐       ┌──────────────┐                                   │
-│   │  Unit Tests  │       │ 1 Integration│    0 Contract Tests              │
-│   │   (24 only)  │       │     Test     │    0 E2E Tests                   │
-│   └──────────────┘       └──────────────┘                                   │
-│                                                                             │
-│   Task runners: None (uv run pytest only)                                   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+                ⏮️ Before: Testing Gap
 
-                                    │
-                                    │
-                                    ▼
+┏━━━━━━━━━━━━━┓                          ┌────────────┐
+┃ YAML Schema ┃  · · · · no validation · │ ClickHouse │
+┗━━━━━━━━━━━━━┛                          └────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                   AFTER                                     │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌──────────────┐    schema/loader.py    ┌──────────────────┐             │
-│   │ YAML Schema  │ ─────────────────────▶ │  Schema Object   │             │
-│   │ (with x-ch)  │                        │   (typed)        │             │
-│   └──────────────┘                        └────────┬─────────┘             │
-│         │                                          │                        │
-│         │ schema/introspector.py                   │ tests/contracts/       │
-│         ▼                                          ▼                        │
-│   ┌──────────────┐      Validates         ┌──────────────────┐             │
-│   │ ClickHouse   │ ◀──────────────────────│ Contract Tests   │             │
-│   │   (live)     │                        │ (invariants)     │             │
-│   └──────────────┘                        └──────────────────┘             │
-│                                                                             │
-│   ┌──────────────┐       ┌──────────────┐    ┌──────────────────┐          │
-│   │  Unit Tests  │       │ Contract     │    │ E2E Roundtrip    │          │
-│   │   (24+)      │       │   Tests      │    │ (real Deribit)   │          │
-│   └──────────────┘       └──────────────┘    └──────────────────┘          │
-│                                                                             │
-│   Task runner: mise tasks (.mise.toml)                                      │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌───────────────┐     ┌───────────────┐
+│  Unit Tests   │     │ 1 Integration │
+│   (24 only)   │     │     Test      │
+└───────────────┘     └───────────────┘
+
+0 Contract Tests | 0 E2E Tests | No task runner
 ```
 
-<!-- graph-easy end -->
+<details>
+<summary>graph-easy source</summary>
+
+```
+graph { label: "⏮️ Before: Testing Gap"; flow: east; }
+
+[ YAML Schema ] { border: bold; }
+[ ClickHouse ]
+[ Unit Tests\n(24 only) ]
+[ 1 Integration\nTest ]
+
+[ YAML Schema ] ..> [ ClickHouse ]
+```
+
+</details>
+
+**After**: Schema-first with contract tests and E2E validation
+
+```
+⏭️ After: Schema-First Validation
+
+                                        ┏━━━━━━━━━━━━━━━━┓
+                                        ┃  YAML Schema   ┃
+                                        ┃     (SSoT)     ┃
+                                        ┗━━━━━━━━━━━━━━━━┛
+                                          │
+                                          │
+                                          ∨
+                                        ┌────────────────┐
+  ┌──────────────────────────────────── │ Schema Loader  │
+  │                                     └────────────────┘
+  │                                       │
+  │                                       │
+  ∨                                       ∨
+┌──────────────┐     ╭────────────╮     ┌────────────────┐
+│ Introspector │ <── │ mise tasks │ ──> │ Contract Tests │
+└──────────────┘     ╰────────────╯     └────────────────┘
+  │                    │                  │
+  │                    │                  │
+  │                    ∨                  ∨
+  │                  ┌────────────┐     ╔════════════════╗
+  │                  │ E2E Tests  │ ──> ║   ClickHouse   ║
+  │                  └────────────┘     ╚════════════════╝
+  │              validates                ∧
+  └───────────────────────────────────────┘
+```
+
+<details>
+<summary>graph-easy source</summary>
+
+```
+graph { label: "⏭️ After: Schema-First Validation"; flow: south; }
+
+[ YAML Schema\n(SSoT) ] { border: bold; }
+[ Schema Loader ]
+[ Introspector ]
+[ ClickHouse ] { border: double; }
+[ Contract Tests ]
+[ E2E Tests ]
+[ mise tasks ] { shape: rounded; }
+
+[ YAML Schema\n(SSoT) ] -> [ Schema Loader ]
+[ Schema Loader ] -> [ Introspector ]
+[ Schema Loader ] -> [ Contract Tests ]
+[ Introspector ] -- validates --> [ ClickHouse ]
+[ Contract Tests ] -> [ ClickHouse ]
+[ E2E Tests ] -> [ ClickHouse ]
+[ mise tasks ] -> [ Contract Tests ]
+[ mise tasks ] -> [ E2E Tests ]
+[ mise tasks ] -> [ Introspector ]
+```
+
+</details>
 
 ## Research Summary
 
