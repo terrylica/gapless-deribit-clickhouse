@@ -1,0 +1,12 @@
+# ADR: 2025-12-07-schema-first-e2e-validation
+repos:
+  - repo: https://github.com/returntocorp/semgrep
+    rev: v1.52.0
+    hooks:
+      - id: semgrep
+        args: ["--config", "auto", "--error"]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.0
+    hooks:
+      - id: gitleaks

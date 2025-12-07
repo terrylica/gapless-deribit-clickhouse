@@ -1,0 +1,42 @@
+# ADR: 2025-12-07-schema-first-e2e-validation
+[tools]
+python = "3.11"
+
+[tasks.test]
+description = "Run all tests"
+run = "uv run pytest tests/ -v"
+
+[tasks.test-unit]
+description = "Run unit tests only (no credentials)"
+run = "uv run pytest tests/ -v -m 'not slow and not e2e'"
+
+[tasks.test-e2e]
+description = "Run E2E tests (requires credentials)"
+run = "uv run pytest tests/e2e/ -v -m e2e"
+
+[tasks.test-contracts]
+description = "Run contract tests"
+run = "uv run pytest tests/contracts/ -v"
+
+[tasks.lint]
+description = "Run ruff linting"
+run = "uv run ruff check src/"
+
+[tasks.format]
+description = "Format code"
+run = "uv run ruff format src/ tests/"
+
+[tasks.schema-validate]
+description = "Validate YAML schema vs live ClickHouse"
+run = "uv run python -m gapless_deribit_clickhouse.schema.cli validate"
+
+[tasks.schema-diff]
+description = "Show schema drift between YAML and live"
+run = "uv run python -m gapless_deribit_clickhouse.schema.cli diff"
+
+[tasks.security]
+description = "Run security scans (semgrep + gitleaks)"
+run = """
+semgrep scan --config auto src/
+gitleaks detect --source .
+"""
