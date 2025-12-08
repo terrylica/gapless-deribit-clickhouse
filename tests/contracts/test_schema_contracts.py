@@ -4,7 +4,7 @@ Contract tests validating schema consistency.
 These tests validate architectural invariants (not mocked data).
 Pattern: gapless-network-data/tests/test_api.py
 
-ADR: 2025-12-07-schema-first-e2e-validation
+ADR: 2025-12-08-clickhouse-naming-convention
 """
 
 import re
@@ -16,50 +16,50 @@ from gapless_deribit_clickhouse.schema.loader import get_schema_path, load_schem
 
 
 class TestSchemaContracts:
-    """Validate deribit_trades.yaml schema contracts."""
+    """Validate options_trades.yaml schema contracts."""
 
     def test_yaml_schema_exists(self):
         """Schema YAML file must exist."""
-        schema_path = get_schema_path("deribit_trades")
+        schema_path = get_schema_path("options_trades")
         assert schema_path.exists(), f"Schema file not found: {schema_path}"
 
     def test_schema_loads_without_error(self):
         """Schema parses successfully."""
-        schema = load_schema("deribit_trades")
+        schema = load_schema("options_trades")
         assert schema.title is not None
         assert schema.title == "Deribit Options Trades"
 
     def test_required_fields_in_columns(self):
         """All required fields exist in columns."""
-        schema = load_schema("deribit_trades")
+        schema = load_schema("options_trades")
         column_names = [c.name for c in schema.columns]
         for required in schema.required_columns:
             assert required in column_names, f"Required field {required} missing from columns"
 
     def test_required_fields_not_nullable(self):
         """Required fields must have not_null=true."""
-        schema = load_schema("deribit_trades")
+        schema = load_schema("options_trades")
         for col in schema.columns:
             if col.name in schema.required_columns:
                 assert col.clickhouse_not_null, f"Required field {col.name} must be NOT NULL"
 
     def test_clickhouse_config_complete(self):
         """ClickHouse config has all required fields."""
-        schema = load_schema("deribit_trades")
-        assert schema.clickhouse.database == "deribit_options"
-        assert schema.clickhouse.table == "trades"
+        schema = load_schema("options_trades")
+        assert schema.clickhouse.database == "deribit"
+        assert schema.clickhouse.table == "options_trades"
         assert schema.clickhouse.engine == "ReplacingMergeTree()"
         assert len(schema.clickhouse.order_by) > 0
 
     def test_all_columns_have_clickhouse_type(self):
         """Every column must specify x-clickhouse.type."""
-        schema = load_schema("deribit_trades")
+        schema = load_schema("options_trades")
         for col in schema.columns:
             assert col.clickhouse_type, f"Column {col.name} missing x-clickhouse.type"
 
     def test_all_columns_have_pandas_dtype(self):
         """Every column must specify x-pandas.dtype."""
-        schema = load_schema("deribit_trades")
+        schema = load_schema("options_trades")
         for col in schema.columns:
             assert col.pandas_dtype, f"Column {col.name} missing x-pandas.dtype"
 

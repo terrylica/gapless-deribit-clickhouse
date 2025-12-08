@@ -81,6 +81,7 @@ Set ClickHouse credentials via one of:
 2. **`.env` file** in project root
 
 3. **Doppler** (recommended for production):
+
    ```bash
    doppler setup --project gapless-deribit-clickhouse --config prd
    ```
@@ -114,8 +115,8 @@ ruff check src/
           |
           v
 +=====================+
-| deribit_options     |
-|      .trades        |
+|       deribit       |
+|   .options_trades   |
 +=====================+
           |
           v
@@ -126,7 +127,7 @@ ruff check src/
 +---------------------+
 ```
 
-ADR: [2025-12-05-trades-only-architecture-pivot](/docs/adr/2025-12-05-trades-only-architecture-pivot.md)
+ADR: [2025-12-08-clickhouse-naming-convention](/docs/adr/2025-12-08-clickhouse-naming-convention.md)
 
 ## License
 

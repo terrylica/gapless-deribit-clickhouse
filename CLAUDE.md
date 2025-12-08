@@ -35,7 +35,7 @@ properties:
 ```python
 # Load YAML -> typed Schema object
 from gapless_deribit_clickhouse.schema.loader import load_schema
-schema = load_schema("deribit_trades")
+schema = load_schema("options_trades")
 # Access: schema.columns, schema.clickhouse, schema.required_columns
 ```
 
@@ -108,6 +108,6 @@ For significant changes, use the `/itp:itp` slash command:
 
 ## References
 
-- **ADR**: [Schema-First E2E Validation](/docs/adr/2025-12-07-schema-first-e2e-validation.md)
+- **ADR**: [ClickHouse Naming Convention](/docs/adr/2025-12-08-clickhouse-naming-convention.md)
 - **Pattern source**: gapless-network-data schema loader
 - **Contract tests pattern**: alpha-forge

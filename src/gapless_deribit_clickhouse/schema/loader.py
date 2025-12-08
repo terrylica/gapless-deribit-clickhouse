@@ -7,11 +7,11 @@ for all generated types, DDL, and documentation.
 Usage:
     from gapless_deribit_clickhouse.schema.loader import load_schema
 
-    schema = load_schema("deribit_trades")
+    schema = load_schema("options_trades")
     print(schema.title)
     print(schema.columns)
 
-ADR: 2025-12-03-deribit-options-clickhouse-pipeline
+ADR: 2025-12-08-clickhouse-naming-convention
 """
 
 from __future__ import annotations
@@ -172,7 +172,7 @@ def load_schema(name: str) -> Schema:
 
     Args:
         name: Schema name (without .yaml extension).
-              Options: "deribit_trades", "deribit_ticker_snapshots"
+              Options: "options_trades"
 
     Returns:
         Parsed Schema object with typed access to all fields

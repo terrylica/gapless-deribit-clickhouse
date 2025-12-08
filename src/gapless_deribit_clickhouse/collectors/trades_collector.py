@@ -4,7 +4,7 @@ Deribit trades collector for historical backfill.
 Uses history.deribit.com API to fetch historical trade data since 2018.
 Implements cursor-based pagination with end_timestamp.
 
-ADR: 2025-12-03-deribit-options-clickhouse-pipeline
+ADR: 2025-12-08-clickhouse-naming-convention
 """
 
 from __future__ import annotations
@@ -200,7 +200,7 @@ def _insert_trades(df: pd.DataFrame) -> None:
     # Convert to format expected by ClickHouse
     # Note: clickhouse-connect handles the conversion
     client.insert(
-        "deribit_options.trades",
+        "deribit.options_trades",
         df.to_dict("records"),
         column_names=list(df.columns),
     )

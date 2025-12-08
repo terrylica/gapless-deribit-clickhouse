@@ -8,7 +8,7 @@ Usage:
     from gapless_deribit_clickhouse.schema.introspector import validate_schema
     from gapless_deribit_clickhouse.schema.loader import load_schema
 
-    schema = load_schema("deribit_trades")
+    schema = load_schema("options_trades")
     is_valid, diffs = validate_schema(schema)
 
 ADR: 2025-12-07-schema-first-e2e-validation

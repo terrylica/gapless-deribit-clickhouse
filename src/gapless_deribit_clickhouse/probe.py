@@ -11,7 +11,7 @@ Usage:
     sources = get_data_sources()
     caps = get_capabilities()
 
-ADR: 2025-12-05-trades-only-architecture-pivot
+ADR: 2025-12-08-clickhouse-naming-convention
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ def get_data_sources() -> list[DataSource]:
         DataSource(
             name="Deribit Options Trades",
             description="Historical trade data for BTC and ETH options on Deribit exchange",
-            table="deribit_options.trades",
+            table="deribit.options_trades",
             key_fields=["trade_id", "instrument_name", "price", "amount", "iv"],
             time_range="2018-present (historical backfill available)",
             update_frequency="Continuous (can backfill)",
@@ -156,5 +156,5 @@ Key Capabilities:
 Instrument Format: {UNDERLYING}-{DDMMMYY}-{STRIKE}-{C|P}
   Example: BTC-27DEC24-100000-C = BTC call, $100k strike, expires Dec 27 2024
 
-ADR: 2025-12-05-trades-only-architecture-pivot
+ADR: 2025-12-08-clickhouse-naming-convention
 """.strip()

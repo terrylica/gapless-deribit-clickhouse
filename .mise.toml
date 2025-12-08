@@ -1,9 +1,15 @@
-# ADR: 2025-12-07-schema-first-e2e-validation
+# ADR: 2025-12-08-clickhouse-naming-convention
 min_version = "2024.9.5"
 
 [env]
 # Automatic venv activation - mise will use uv to create it
 _.python.venv = { path = ".venv", create = true }
+# Load ClickHouse credentials from .env (SSoT)
+_.file = '.env'
+
+# Schema-first configuration (SSoT)
+CLICKHOUSE_DATABASE = "deribit"
+CLICKHOUSE_TABLE = "options_trades"
 
 [tools]
 # Flexible Python: accept any 3.11+ (matches pyproject.toml requires-python)
@@ -66,3 +72,44 @@ semgrep scan --config auto src/ && gitleaks detect --source .
 description = "Full CI pipeline (lint + tests + security)"
 depends = ["lint", "test-unit", "test-contracts", "security"]
 run = "echo '✓ CI pipeline passed'"
+
+# Hidden helper tasks (internal utilities)
+# ADR: 2025-12-08-clickhouse-naming-convention
+
+[tasks._check-credentials]
+description = "Verify ClickHouse credentials are set"
+hide = true
+run = """
+if [ -z "$CLICKHOUSE_HOST_READONLY" ]; then
+  echo "❌ CLICKHOUSE_HOST_READONLY not set. Copy .env.example to .env"
+  exit 1
+fi
+echo "✓ Credentials configured"
+"""
+
+[tasks._confirm-destructive]
+description = "Confirm destructive operation"
+hide = true
+run = """
+echo "⚠️  This will DROP existing data. Press Enter to continue or Ctrl+C to cancel..."
+read
+"""
+
+# Database management tasks with depends_post for automatic validation
+
+[tasks.db-init]
+description = "Create ClickHouse database and table from schema"
+depends = ["_check-credentials"]
+depends_post = ["schema-validate"]
+run = "uv run python -m gapless_deribit_clickhouse.schema.cli init"
+
+[tasks.db-drop]
+description = "Drop legacy database (destructive!)"
+depends = ["_check-credentials", "_confirm-destructive"]
+run = "uv run python -m gapless_deribit_clickhouse.schema.cli drop-legacy"
+
+[tasks.db-migrate]
+description = "Full migration: drop legacy + create new + validate"
+depends = ["db-drop", "db-init"]
+depends_post = ["test-e2e"]
+run = "echo '✓ Migration complete'"

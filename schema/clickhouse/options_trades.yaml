@@ -1,11 +1,11 @@
 # JSON Schema (Draft 2020-12) as YAML
-# This is the SINGLE SOURCE OF TRUTH for deribit_options.trades
+# This is the SINGLE SOURCE OF TRUTH for deribit.options_trades
 # All Python types, DDL, and documentation are generated from this file.
 #
-# ADR: 2025-12-03-deribit-options-clickhouse-pipeline
+# ADR: 2025-12-08-clickhouse-naming-convention
 
 $schema: "https://json-schema.org/draft/2020-12/schema"
-$id: "https://gapless-deribit-clickhouse/schema/deribit_options/trades"
+$id: "https://gapless-deribit-clickhouse/schema/deribit/options_trades"
 
 title: "Deribit Options Trades"
 description: |
@@ -15,8 +15,8 @@ description: |
 
 # ClickHouse-specific metadata (custom extension)
 x-clickhouse:
-  database: deribit_options
-  table: trades
+  database: deribit
+  table: options_trades
   engine: ReplacingMergeTree()
   order_by: [underlying, expiry, strike, option_type, trade_id]
   partition_by: "toYYYYMM(timestamp)"

@@ -14,7 +14,7 @@ Usage:
         end="2024-01-31",
     )
 
-ADR: 2025-12-05-trades-only-architecture-pivot
+ADR: 2025-12-08-clickhouse-naming-convention
 """
 
 from __future__ import annotations
@@ -159,7 +159,7 @@ def fetch_trades(
 
     query = f"""
         SELECT *
-        FROM deribit_options.trades
+        FROM deribit.options_trades
         WHERE {where_clause}
         ORDER BY timestamp DESC
         {limit_clause}
@@ -168,7 +168,6 @@ def fetch_trades(
     client = get_client()
 
     try:
-        result = client.query(query, parameters=params)
-        return result.result_set_as_dataframe()
+        return client.query_df(query, parameters=params)
     except Exception as e:
         raise QueryError(f"Failed to fetch trades: {e}") from e

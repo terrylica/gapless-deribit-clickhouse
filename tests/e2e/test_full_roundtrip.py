@@ -4,7 +4,7 @@ Full roundtrip E2E tests.
 Tests the complete data flow:
 Deribit API -> collect_trades() -> ClickHouse -> fetch_trades() -> DataFrame
 
-ADR: 2025-12-07-schema-first-e2e-validation
+ADR: 2025-12-08-clickhouse-naming-convention
 """
 
 import pytest
@@ -44,7 +44,7 @@ class TestFullRoundtrip:
         from gapless_deribit_clickhouse import fetch_trades
         from gapless_deribit_clickhouse.schema.loader import load_schema
 
-        schema = load_schema("deribit_trades")
+        schema = load_schema("options_trades")
         df = fetch_trades(underlying="BTC", limit=100)
 
         for required_field in schema.required_columns:
@@ -102,7 +102,7 @@ class TestSchemaValidation:
         )
         from gapless_deribit_clickhouse.schema.loader import load_schema
 
-        schema = load_schema("deribit_trades")
+        schema = load_schema("options_trades")
         is_valid, diffs = validate_schema(schema)
 
         if not is_valid:
