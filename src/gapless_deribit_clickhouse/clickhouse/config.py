@@ -23,7 +23,8 @@ ENV_USER = "CLICKHOUSE_USER_READONLY"
 ENV_PASSWORD = "CLICKHOUSE_PASSWORD_READONLY"
 
 # Connection defaults
-DEFAULT_PORT = 8443
+# Note: Port 443 used instead of 8443 for network compatibility
+DEFAULT_PORT = 443
 DEFAULT_SECURE = True
 
 
@@ -43,7 +44,8 @@ def get_credentials() -> tuple[str, str, str]:
         CredentialError: If credentials cannot be resolved
     """
     # Load .env file if present (populates os.environ)
-    load_dotenv()
+    # override=True ensures .env takes precedence over existing env vars
+    load_dotenv(override=True)
 
     # Read from env vars (populated by .env or set directly)
     host = os.environ.get(ENV_HOST)

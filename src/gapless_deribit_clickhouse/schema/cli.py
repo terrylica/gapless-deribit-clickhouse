@@ -97,7 +97,7 @@ def cmd_init() -> int:
     create_table_sql = f"""
 CREATE TABLE IF NOT EXISTS {schema.full_table_name}
 (
-{chr(10).join(columns_sql)}
+{",\n".join(columns_sql)}
 )
 ENGINE = {schema.clickhouse.engine}
 PARTITION BY {partition_clause}
