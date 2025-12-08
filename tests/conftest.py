@@ -10,6 +10,48 @@ import pytest
 
 
 @pytest.fixture
+def skip_without_credentials():
+    """Skip test if ClickHouse credentials not configured.
+
+    Consolidated from tests/test_api.py and tests/e2e/conftest.py.
+    Single source of truth for credential validation.
+    """
+    from gapless_deribit_clickhouse.clickhouse.config import get_credentials
+    from gapless_deribit_clickhouse.exceptions import CredentialError
+
+    try:
+        get_credentials()
+    except CredentialError:
+        pytest.skip("ClickHouse credentials not configured")
+
+
+@pytest.fixture
+def skip_without_deribit():
+    """Skip if Deribit API unreachable.
+
+    Moved from tests/e2e/conftest.py for broader availability.
+    """
+    import httpx
+
+    try:
+        with httpx.Client(timeout=5) as client:
+            response = client.get(
+                "https://history.deribit.com/api/v2/public/get_last_trades_by_currency_and_time",
+                params={
+                    "currency": "BTC",
+                    "kind": "option",
+                    "count": 1,
+                    "start_timestamp": 0,
+                    "end_timestamp": 1,
+                },
+            )
+            if response.status_code != 200:
+                pytest.skip("Deribit API unreachable")
+    except Exception:
+        pytest.skip("Deribit API connection failed")
+
+
+@pytest.fixture
 def instrument_factory():
     """Factory for creating test instruments."""
 

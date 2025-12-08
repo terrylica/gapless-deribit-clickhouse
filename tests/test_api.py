@@ -9,19 +9,6 @@ ADR: 2025-12-05-trades-only-architecture-pivot
 
 import pytest
 
-from gapless_deribit_clickhouse.exceptions import CredentialError
-
-
-@pytest.fixture
-def skip_without_credentials():
-    """Skip test if ClickHouse credentials not configured."""
-    try:
-        from gapless_deribit_clickhouse.clickhouse.config import get_credentials
-
-        get_credentials()
-    except CredentialError:
-        pytest.skip("ClickHouse credentials not configured")
-
 
 class TestFetchTrades:
     """Tests for fetch_trades function."""

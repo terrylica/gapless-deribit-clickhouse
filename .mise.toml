@@ -1,6 +1,27 @@
 # ADR: 2025-12-07-schema-first-e2e-validation
+min_version = "2024.9.5"
+
+[env]
+# Automatic venv activation - mise will use uv to create it
+_.python.venv = { path = ".venv", create = true }
+
 [tools]
-python = "3.11"
+# Flexible Python: accept any 3.11+ (matches pyproject.toml requires-python)
+python = "3"
+uv = "latest"
+
+[tasks.install]
+description = "Install dependencies with uv"
+alias = "i"
+run = "uv sync --all-extras"
+
+[tasks.venv-recreate]
+description = "Recreate virtual environment from scratch"
+run = """
+rm -rf .venv
+uv venv .venv
+uv sync --all-extras
+"""
 
 [tasks.test]
 description = "Run all tests"
@@ -8,6 +29,7 @@ run = "uv run pytest tests/ -v"
 
 [tasks.test-unit]
 description = "Run unit tests only (no credentials)"
+depends = ["lint"]
 run = "uv run pytest tests/ -v -m 'not slow and not e2e'"
 
 [tasks.test-e2e]
@@ -37,6 +59,10 @@ run = "uv run python -m gapless_deribit_clickhouse.schema.cli diff"
 [tasks.security]
 description = "Run security scans (semgrep + gitleaks)"
 run = """
-semgrep scan --config auto src/
-gitleaks detect --source .
+semgrep scan --config auto src/ && gitleaks detect --source .
 """
+
+[tasks.ci]
+description = "Full CI pipeline (lint + tests + security)"
+depends = ["lint", "test-unit", "test-contracts", "security"]
+run = "echo '✓ CI pipeline passed'"
