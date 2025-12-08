@@ -65,11 +65,30 @@ Key contract tests:
 
 **Pattern**: `.env` + 1Password (never commit secrets)
 
+**1Password Item**: `gapless-deribit-clickhouse` (Engineering vault)
+
 ```bash
-# .env.example (template)
-CLICKHOUSE_HOST_READONLY=
-CLICKHOUSE_USER_READONLY=
-CLICKHOUSE_PASSWORD_READONLY=
+# Retrieve credentials
+op item get "gapless-deribit-clickhouse" --vault Engineering --reveal
+```
+
+**Connection Details**:
+
+| Setting  | Value                                       |
+| -------- | ------------------------------------------- |
+| Host     | `ebmf8f35lu.us-west-2.aws.clickhouse.cloud` |
+| Port     | `443` (not 8443 - network compatibility)    |
+| User     | `default`                                   |
+| Database | `deribit`                                   |
+| Table    | `options_trades`                            |
+| Secure   | `true` (HTTPS)                              |
+
+**Environment Variables** (`.env`):
+
+```bash
+CLICKHOUSE_HOST_READONLY=ebmf8f35lu.us-west-2.aws.clickhouse.cloud
+CLICKHOUSE_USER_READONLY=default
+CLICKHOUSE_PASSWORD_READONLY=<from 1Password>
 ```
 
 **Avoid**: Doppler for this project (simplified to .env)
