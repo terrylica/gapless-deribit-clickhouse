@@ -30,8 +30,9 @@ ENV_LOCAL_HOST = "CLICKHOUSE_LOCAL_HOST"
 ENV_LOCAL_PORT = "CLICKHOUSE_LOCAL_PORT"
 
 # Local ClickHouse defaults
+# Note: clickhouse-connect uses HTTP interface, so port 8123 (not 9000)
 LOCAL_DEFAULT_HOST = "localhost"
-LOCAL_DEFAULT_PORT = 9000
+LOCAL_DEFAULT_PORT = 8123
 
 
 def get_client(mode: str | None = None) -> clickhouse_connect.driver.Client:

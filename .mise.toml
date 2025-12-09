@@ -20,8 +20,9 @@ AWS_DEFAULT_REGION = "us-west-2"
 CLICKHOUSE_MODE = "cloud"
 
 # Local ClickHouse (when CLICKHOUSE_MODE=local)
+# Note: clickhouse-connect uses HTTP interface (port 8123, not native 9000)
 CLICKHOUSE_LOCAL_HOST = "localhost"
-CLICKHOUSE_LOCAL_PORT = "9000"
+CLICKHOUSE_LOCAL_PORT = "8123"
 
 [tools]
 # Flexible Python: accept any 3.11+ (matches pyproject.toml requires-python)

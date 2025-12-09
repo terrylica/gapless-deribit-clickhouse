@@ -335,10 +335,10 @@ def _insert_trades_with_dedup(
 
     # Insert with deduplication token
     # Note: Requires ReplicatedMergeTree or SharedMergeTree (ClickHouse Cloud)
-    client.insert(
+    # Pass DataFrame directly - clickhouse-connect handles conversion
+    client.insert_df(
         "deribit.options_trades",
-        df.to_dict("records"),
-        column_names=list(df.columns),
+        df,
         settings={"insert_deduplication_token": dedup_token},
     )
 
