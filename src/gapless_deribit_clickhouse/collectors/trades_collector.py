@@ -4,13 +4,22 @@ Deribit trades collector for historical backfill.
 Uses history.deribit.com API to fetch historical trade data since 2018.
 Implements cursor-based pagination with end_timestamp.
 
+Features:
+- Idempotent inserts via deduplication tokens
+- Resumable backfills via checkpoint files
+- Progress tracking with batch metrics
+
 ADR: 2025-12-08-clickhouse-naming-convention
+ADR: 2025-12-08-clickhouse-data-pipeline-architecture (idempotency)
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -37,6 +46,10 @@ HTTP_OK = 200
 
 # Progress logging interval
 PROGRESS_LOG_INTERVAL_SECONDS = 30
+
+# Checkpoint configuration
+DEFAULT_CHECKPOINT_DIR = Path("tmp/checkpoints")
+BATCH_SIZE_FOR_INSERT = 10000  # Insert every N trades
 
 
 @retry(
@@ -89,6 +102,42 @@ def _fetch_trades_page(
     return data.get("result", {})
 
 
+def _generate_deduplication_token(currency: str, start_ts: int, end_ts: int, batch: int) -> str:
+    """
+    Generate unique deduplication token for ClickHouse insert.
+
+    Token is based on currency, time range, and batch number.
+    ClickHouse will reject duplicate inserts with same token.
+    """
+    token_input = f"{currency}:{start_ts}:{end_ts}:{batch}"
+    return hashlib.sha256(token_input.encode()).hexdigest()[:32]
+
+
+def _get_checkpoint_path(currency: str, start_ts: int, end_ts: int) -> Path:
+    """Get checkpoint file path for a backfill job."""
+    checkpoint_id = f"{currency}_{start_ts}_{end_ts}"
+    return DEFAULT_CHECKPOINT_DIR / f"{checkpoint_id}.json"
+
+
+def _load_checkpoint(checkpoint_path: Path) -> dict[str, Any] | None:
+    """Load checkpoint from file if exists."""
+    if not checkpoint_path.exists():
+        return None
+    return json.loads(checkpoint_path.read_text())
+
+
+def _save_checkpoint(checkpoint_path: Path, checkpoint: dict[str, Any]) -> None:
+    """Save checkpoint to file."""
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint_path.write_text(json.dumps(checkpoint, indent=2))
+
+
+def _clear_checkpoint(checkpoint_path: Path) -> None:
+    """Remove checkpoint file after successful completion."""
+    if checkpoint_path.exists():
+        checkpoint_path.unlink()
+
+
 def _trade_to_row(trade: dict[str, Any]) -> dict[str, Any]:
     """
     Convert API trade dict to database row.
@@ -119,15 +168,21 @@ def collect_trades(
     start_date: str | None = None,
     end_date: str | None = None,
     insert_to_db: bool = True,
+    resume: bool = True,
 ) -> pd.DataFrame:
     """
     Collect historical options trades from Deribit.
+
+    Supports resumable backfills via checkpoint files. If a backfill is
+    interrupted, calling with the same parameters will resume from the
+    last checkpoint.
 
     Args:
         currency: "BTC" or "ETH"
         start_date: Start date string (e.g., "2024-01-01")
         end_date: End date string (defaults to now)
         insert_to_db: If True, insert to ClickHouse
+        resume: If True, resume from checkpoint if available
 
     Returns:
         DataFrame with collected trades
@@ -144,12 +199,28 @@ def collect_trades(
     else:
         end_ts = int(datetime.now().timestamp() * 1000)
 
+    # Checkpoint management
+    checkpoint_path = _get_checkpoint_path(currency, start_ts, end_ts)
+    checkpoint = _load_checkpoint(checkpoint_path) if resume else None
+
+    if checkpoint:
+        current_end_ts = checkpoint["last_end_ts"]
+        batch_number = checkpoint["batch_number"]
+        total_collected = checkpoint["total_collected"]
+        logger.info(
+            f"Resuming from checkpoint: batch {batch_number}, {total_collected} trades collected"
+        )
+    else:
+        current_end_ts = end_ts
+        batch_number = 0
+        total_collected = 0
+
     start_label = start_date or "2018-01-01"
     end_label = end_date or "now"
     logger.info(f"Collecting {currency} options trades from {start_label} to {end_label}")
 
     all_trades: list[dict[str, Any]] = []
-    current_end_ts = end_ts
+    batch_trades: list[dict[str, Any]] = []
     last_log_time = datetime.now()
 
     while current_end_ts > start_ts:
@@ -167,31 +238,63 @@ def collect_trades(
         # Convert to rows
         rows = [_trade_to_row(trade) for trade in trades]
         all_trades.extend(rows)
+        batch_trades.extend(rows)
 
         # Update cursor for next page
         oldest_timestamp = min(trade["timestamp"] for trade in trades)
         current_end_ts = oldest_timestamp - 1
 
+        # Insert batch and checkpoint when threshold reached
+        if insert_to_db and len(batch_trades) >= BATCH_SIZE_FOR_INSERT:
+            batch_number += 1
+            _insert_trades_with_dedup(
+                pd.DataFrame(batch_trades),
+                currency,
+                start_ts,
+                end_ts,
+                batch_number,
+            )
+            total_collected += len(batch_trades)
+            batch_trades = []
+
+            # Save checkpoint after successful insert
+            _save_checkpoint(checkpoint_path, {
+                "last_end_ts": current_end_ts,
+                "batch_number": batch_number,
+                "total_collected": total_collected,
+                "updated_at": datetime.now().isoformat(),
+            })
+
         # Progress logging
         if (datetime.now() - last_log_time).seconds >= PROGRESS_LOG_INTERVAL_SECONDS:
-            logger.info(f"Collected {len(all_trades)} trades so far...")
+            logger.info(f"Collected {len(all_trades)} trades so far (batch {batch_number})...")
             last_log_time = datetime.now()
 
-    logger.info(f"Collected {len(all_trades)} total trades")
+    # Insert remaining trades
+    if insert_to_db and batch_trades:
+        batch_number += 1
+        _insert_trades_with_dedup(
+            pd.DataFrame(batch_trades),
+            currency,
+            start_ts,
+            end_ts,
+            batch_number,
+        )
+        total_collected += len(batch_trades)
+
+    # Clear checkpoint on successful completion
+    _clear_checkpoint(checkpoint_path)
+
+    logger.info(f"Collected {len(all_trades)} total trades in {batch_number} batches")
 
     if not all_trades:
         return pd.DataFrame()
 
-    df = pd.DataFrame(all_trades)
-
-    if insert_to_db:
-        _insert_trades(df)
-
-    return df
+    return pd.DataFrame(all_trades)
 
 
 def _insert_trades(df: pd.DataFrame) -> None:
-    """Insert trades DataFrame to ClickHouse."""
+    """Insert trades DataFrame to ClickHouse (legacy, no deduplication)."""
     if df.empty:
         return
 
@@ -206,3 +309,37 @@ def _insert_trades(df: pd.DataFrame) -> None:
     )
 
     logger.info(f"Inserted {len(df)} trades to ClickHouse")
+
+
+def _insert_trades_with_dedup(
+    df: pd.DataFrame,
+    currency: str,
+    start_ts: int,
+    end_ts: int,
+    batch: int,
+) -> None:
+    """
+    Insert trades DataFrame to ClickHouse with deduplication token.
+
+    Uses insert_deduplication_token setting to ensure idempotent inserts.
+    If the same batch is inserted twice (e.g., after a retry), ClickHouse
+    will reject the duplicate.
+    """
+    if df.empty:
+        return
+
+    client = get_client()
+
+    # Generate unique token for this batch
+    dedup_token = _generate_deduplication_token(currency, start_ts, end_ts, batch)
+
+    # Insert with deduplication token
+    # Note: Requires ReplicatedMergeTree or SharedMergeTree (ClickHouse Cloud)
+    client.insert(
+        "deribit.options_trades",
+        df.to_dict("records"),
+        column_names=list(df.columns),
+        settings={"insert_deduplication_token": dedup_token},
+    )
+
+    logger.info(f"Inserted batch {batch}: {len(df)} trades (dedup_token: {dedup_token[:8]}...)")

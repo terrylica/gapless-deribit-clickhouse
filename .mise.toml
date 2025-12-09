@@ -11,6 +11,18 @@ _.file = '.env'
 CLICKHOUSE_DATABASE = "deribit"
 CLICKHOUSE_TABLE = "options_trades"
 
+# ClickHouse Cloud Region (for AWS resource deployment)
+# ADR: 2025-12-08-clickhouse-data-pipeline-architecture
+CLICKHOUSE_CLOUD_REGION = "us-west-2"
+AWS_DEFAULT_REGION = "us-west-2"
+
+# Dual-mode: "local" for development/backtesting, "cloud" for production
+CLICKHOUSE_MODE = "cloud"
+
+# Local ClickHouse (when CLICKHOUSE_MODE=local)
+CLICKHOUSE_LOCAL_HOST = "localhost"
+CLICKHOUSE_LOCAL_PORT = "9000"
+
 [tools]
 # Flexible Python: accept any 3.11+ (matches pyproject.toml requires-python)
 python = "3"
@@ -113,3 +125,105 @@ description = "Full migration: drop legacy + create new + validate"
 depends = ["db-drop", "db-init"]
 depends_post = ["test-e2e"]
 run = "echo '✓ Migration complete'"
+
+# =============================================================================
+# Dual-Mode Orchestration Tasks
+# ADR: 2025-12-08-clickhouse-data-pipeline-architecture
+# =============================================================================
+
+[tasks._check-local-server]
+description = "Verify local ClickHouse is running"
+hide = true
+run = """
+curl -s http://localhost:8123/ping > /dev/null 2>&1 || {
+  echo "❌ Local ClickHouse not running. Start with: clickhouse server"
+  exit 1
+}
+echo "✓ Local ClickHouse running"
+"""
+
+[tasks.local-init]
+description = "Initialize local ClickHouse with same schema as cloud"
+env = { CLICKHOUSE_MODE = "local" }
+depends = ["_check-local-server"]
+depends_post = ["local-validate"]
+run = "uv run python -m gapless_deribit_clickhouse.schema.cli init"
+
+[tasks.local-validate]
+description = "Validate local schema matches YAML"
+env = { CLICKHOUSE_MODE = "local" }
+run = "uv run python -m gapless_deribit_clickhouse.schema.cli validate"
+
+[tasks.cloud-validate]
+description = "Validate cloud schema matches YAML"
+env = { CLICKHOUSE_MODE = "cloud" }
+depends = ["_check-credentials"]
+run = "uv run python -m gapless_deribit_clickhouse.schema.cli validate"
+
+[tasks.schema-align]
+description = "Verify local and cloud schemas are aligned"
+depends = ["local-validate", "cloud-validate"]
+run = "echo '✓ Local and cloud schemas aligned with YAML SSoT'"
+
+[tasks.e2e-validate]
+description = "E2E validation: collect real Deribit data to local ClickHouse"
+env = { CLICKHOUSE_MODE = "local" }
+depends = ["local-init", "_check-local-server"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse import collect_trades
+from gapless_deribit_clickhouse.clickhouse.connection import get_client
+import os
+
+os.environ['CLICKHOUSE_MODE'] = 'local'
+
+print('Step 1: Collecting real data from Deribit API (1 hour window)...')
+df = collect_trades(
+    currency='BTC',
+    start_date='2024-12-01',
+    end_date='2024-12-01 01:00:00',
+    insert_to_db=True
+)
+print(f'Collected and inserted {len(df)} real trades')
+
+print('Step 2: Verifying inserted data...')
+client = get_client(mode='local')
+count = client.command('SELECT count() FROM deribit.options_trades')
+assert count > 0, f'Expected trades, got {count}'
+print(f'Local ClickHouse has {count} rows')
+
+print('E2E validation PASSED')
+"
+"""
+
+[tasks.measure-volume]
+description = "Measure actual Deribit data volume for 1 day"
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse import collect_trades
+
+print('Measuring real Deribit data volume (1 day)...')
+df = collect_trades(
+    currency='BTC',
+    start_date='2024-12-01',
+    end_date='2024-12-02',
+    insert_to_db=False
+)
+
+rows = len(df)
+bytes_raw = df.memory_usage(deep=True).sum()
+print(f'Rows per day: {rows:,}')
+print(f'Bytes per day (raw): {bytes_raw:,}')
+print(f'Bytes per row: {bytes_raw // rows if rows else 0}')
+print(f'Estimated monthly: {rows * 30:,} rows, {bytes_raw * 30 / 1e9:.2f} GB')
+print(f'Estimated full backfill (84 months): {rows * 30 * 84:,} rows')
+"
+"""
+
+[tasks.measure-baseline]
+description = "Record baseline costs from billing APIs"
+run = "uv run scripts/measure_baseline_costs.py"
+
+[tasks.monitor-egress]
+description = "Check egress costs against threshold"
+run = "uv run scripts/monitor_egress.py"
