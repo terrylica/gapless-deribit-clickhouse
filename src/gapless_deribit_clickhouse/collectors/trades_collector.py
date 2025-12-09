@@ -11,6 +11,7 @@ Features:
 
 ADR: 2025-12-08-clickhouse-naming-convention
 ADR: 2025-12-08-clickhouse-data-pipeline-architecture (idempotency)
+ADR: 2025-12-08-mise-pagination-validation (pagination validation)
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -50,6 +52,45 @@ PROGRESS_LOG_INTERVAL_SECONDS = 30
 # Checkpoint configuration
 DEFAULT_CHECKPOINT_DIR = Path("tmp/checkpoints")
 BATCH_SIZE_FOR_INSERT = 10000  # Insert every N trades
+
+
+def _validate_page_continuity(
+    prev_trades: list[dict[str, Any]],
+    curr_trades: list[dict[str, Any]],
+) -> tuple[bool, list[str]]:
+    """
+    Validate no gaps or duplicates between pagination pages.
+
+    Args:
+        prev_trades: Trades from previous page
+        curr_trades: Trades from current page
+
+    Returns:
+        Tuple of (is_valid, list of warning messages)
+    """
+    warnings: list[str] = []
+
+    if not prev_trades or not curr_trades:
+        return True, warnings
+
+    # Check for timestamp gap
+    prev_oldest_ts = min(t["timestamp"] for t in prev_trades)
+    curr_newest_ts = max(t["timestamp"] for t in curr_trades)
+
+    # Gap > threshold is suspicious
+    gap_threshold = int(os.environ.get("PAGINATION_GAP_THRESHOLD_MS", "1000"))
+    gap_ms = prev_oldest_ts - curr_newest_ts
+    if gap_ms > gap_threshold:
+        warnings.append(f"Gap detected: {gap_ms}ms between pages (threshold: {gap_threshold}ms)")
+
+    # Check for duplicates
+    prev_ids = {t["trade_id"] for t in prev_trades}
+    curr_ids = {t["trade_id"] for t in curr_trades}
+    duplicates = prev_ids & curr_ids
+    if duplicates:
+        warnings.append(f"Duplicates: {len(duplicates)} trades appear in both pages")
+
+    return len(warnings) == 0, warnings
 
 
 @retry(
@@ -222,6 +263,8 @@ def collect_trades(
     all_trades: list[dict[str, Any]] = []
     batch_trades: list[dict[str, Any]] = []
     last_log_time = datetime.now()
+    prev_trades: list[dict[str, Any]] = []
+    pagination_warnings = 0
 
     while current_end_ts > start_ts:
         result = _fetch_trades_page(
@@ -234,6 +277,16 @@ def collect_trades(
         trades = result.get("trades", [])
         if not trades:
             break
+
+        # Validate page continuity
+        log_warnings = os.environ.get("PAGINATION_LOG_WARNINGS", "true").lower() == "true"
+        is_valid, warnings = _validate_page_continuity(prev_trades, trades)
+        if not is_valid and log_warnings:
+            for w in warnings:
+                logger.warning(f"Pagination issue: {w}")
+            pagination_warnings += len(warnings)
+
+        prev_trades = trades  # Track for next iteration
 
         # Convert to rows
         rows = [_trade_to_row(trade) for trade in trades]
@@ -262,6 +315,7 @@ def collect_trades(
                 "last_end_ts": current_end_ts,
                 "batch_number": batch_number,
                 "total_collected": total_collected,
+                "pagination_warnings": pagination_warnings,
                 "updated_at": datetime.now().isoformat(),
             })
 

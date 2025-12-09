@@ -24,10 +24,22 @@ CLICKHOUSE_MODE = "cloud"
 CLICKHOUSE_LOCAL_HOST = "localhost"
 CLICKHOUSE_LOCAL_PORT = "8123"
 
+# ClickHouse Server Configuration (local development)
+# ADR: 2025-12-08-mise-pagination-validation
+CLICKHOUSE_DATA_DIR = "{{config_root}}/tmp/clickhouse/data"
+CLICKHOUSE_LOG_DIR = "{{config_root}}/tmp/clickhouse/logs"
+CLICKHOUSE_PID_FILE = "{{config_root}}/tmp/clickhouse/clickhouse.pid"
+
+# Pagination Validation Settings
+PAGINATION_GAP_THRESHOLD_MS = "1000"
+PAGINATION_LOG_WARNINGS = "true"
+
 [tools]
 # Flexible Python: accept any 3.11+ (matches pyproject.toml requires-python)
 python = "3"
 uv = "latest"
+clickhouse = "latest"  # Replaces Homebrew - version-managed
+node = "latest"        # For semantic-release
 
 [tasks.install]
 description = "Install dependencies with uv"
@@ -228,3 +240,73 @@ run = "uv run scripts/measure_baseline_costs.py"
 [tasks.monitor-egress]
 description = "Check egress costs against threshold"
 run = "uv run scripts/monitor_egress.py"
+
+# =============================================================================
+# ClickHouse Server Management Tasks
+# ADR: 2025-12-08-mise-pagination-validation
+# =============================================================================
+
+[tasks._ch-dirs]
+description = "Create ClickHouse data directories"
+hide = true
+run = 'mkdir -p "$CLICKHOUSE_DATA_DIR" "$CLICKHOUSE_LOG_DIR"'
+
+[tasks.ch-start]
+description = "Start local ClickHouse server"
+depends = ["_ch-dirs"]
+run = """
+if [ -f "$CLICKHOUSE_PID_FILE" ] && kill -0 $(cat "$CLICKHOUSE_PID_FILE") 2>/dev/null; then
+  echo "✓ ClickHouse already running (PID $(cat $CLICKHOUSE_PID_FILE))"
+else
+  clickhouse server --daemon \
+    --pid-file="$CLICKHOUSE_PID_FILE" \
+    --path="$CLICKHOUSE_DATA_DIR" \
+    -- --logger.log="$CLICKHOUSE_LOG_DIR/clickhouse-server.log" \
+       --logger.errorlog="$CLICKHOUSE_LOG_DIR/clickhouse-server.err.log"
+  sleep 2
+  curl -s http://localhost:8123/ping && echo "✓ ClickHouse started"
+fi
+"""
+
+[tasks.ch-stop]
+description = "Stop local ClickHouse server"
+run = """
+if [ -f "$CLICKHOUSE_PID_FILE" ]; then
+  kill $(cat "$CLICKHOUSE_PID_FILE") 2>/dev/null && echo "✓ ClickHouse stopped"
+  rm -f "$CLICKHOUSE_PID_FILE"
+else
+  echo "ClickHouse not running"
+fi
+"""
+
+[tasks.ch-status]
+description = "Check ClickHouse server status"
+run = 'curl -s http://localhost:8123/ping && echo "✓ ClickHouse running" || echo "❌ ClickHouse not running"'
+
+[tasks.ch-logs]
+description = "Tail ClickHouse server logs"
+run = "tail -f $CLICKHOUSE_LOG_DIR/clickhouse-server.log"
+
+# =============================================================================
+# Quality Tasks
+# ADR: 2025-12-08-mise-pagination-validation
+# =============================================================================
+
+[tasks.type-check]
+description = "Run mypy type checking"
+run = "uv run mypy src/"
+
+[tasks.lint-all]
+description = "Run all linting (ruff + mypy)"
+depends = ["lint", "type-check"]
+run = "echo '✓ All linting passed'"
+
+[tasks.pre-release]
+description = "Pre-release validation (lint + tests + security)"
+depends = ["lint-all", "test-unit", "test-contracts", "security"]
+run = "echo '✓ Ready for release'"
+
+[tasks.dev]
+description = "Start development environment"
+depends = ["ch-start", "local-init"]
+run = "echo '✓ Development environment ready'"
