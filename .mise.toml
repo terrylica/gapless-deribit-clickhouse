@@ -195,7 +195,8 @@ run = "uv run python -m gapless_deribit_clickhouse.schema.cli drop-legacy"
 [tasks.db-migrate]
 description = "Full migration: drop legacy + create new + validate"
 depends = ["db-drop", "db-init"]
-depends_post = ["test-e2e"]
+# ADR: 2025-12-10 - seed data BEFORE test-e2e (migration leaves DB empty)
+depends_post = ["seed-sample-data", "test-e2e"]
 run = "echo '✓ Migration complete'"
 
 # =============================================================================
@@ -303,6 +304,69 @@ print(f'✓ Local ClickHouse: {count:,} rows')
 "
 """
 
+# ADR: 2025-12-10 - Auto-seed helper tasks for consistent seeding patterns
+[tasks._ensure-local-data]
+description = "Ensure Local ClickHouse has data (auto-seeds if empty)"
+hide = true
+env = { CLICKHOUSE_MODE = "local" }
+depends = ["_check-local-server", "local-init"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse.clickhouse.connection import get_client
+from gapless_deribit_clickhouse import collect_trades
+import logging
+logging.basicConfig(level=logging.INFO)
+
+client = get_client()
+count = client.command('SELECT count() FROM deribit.options_trades')
+print(f'Current data: {count:,} rows')
+
+if count < 100:
+    print('Insufficient data - auto-seeding with 1 day of trades...')
+    df = collect_trades(
+        currency='BTC',
+        start_date='2024-12-01',
+        end_date='2024-12-02',
+        insert_to_db=True,
+        resume=False
+    )
+    print(f'✓ Auto-seeded {len(df):,} trades')
+else:
+    print('✓ Sufficient data exists')
+"
+"""
+
+[tasks._ensure-cloud-data]
+description = "Ensure Cloud ClickHouse has data (auto-seeds if empty)"
+hide = true
+env = { CLICKHOUSE_MODE = "cloud" }
+depends = ["_check-credentials"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse.clickhouse.connection import get_client
+from gapless_deribit_clickhouse import collect_trades
+import logging
+logging.basicConfig(level=logging.INFO)
+
+client = get_client()
+count = client.command('SELECT count() FROM deribit.options_trades')
+print(f'Current data: {count:,} rows')
+
+if count < 100:
+    print('Insufficient data - auto-seeding with 1 day of trades...')
+    df = collect_trades(
+        currency='BTC',
+        start_date='2024-12-01',
+        end_date='2024-12-02',
+        insert_to_db=True,
+        resume=False
+    )
+    print(f'✓ Auto-seeded {len(df):,} trades')
+else:
+    print('✓ Sufficient data exists')
+"
+"""
+
 [tasks.seed-local]
 description = "Seed Local ClickHouse with sample data"
 env = { CLICKHOUSE_MODE = "local" }
@@ -348,21 +412,24 @@ print(f'✓ Cloud seeded with {len(df):,} trades')
 """
 
 [tasks.test-e2e-local]
-description = "Run E2E tests against Local ClickHouse"
+description = "Run E2E tests against Local ClickHouse (auto-seeds if empty)"
 env = { CLICKHOUSE_MODE = "local" }
-depends = ["_check-source", "_check-local-server", "_check-local-data"]
+# ADR: 2025-12-10 - Use _ensure-* for consistent auto-seeding behavior
+depends = ["_check-source", "_ensure-local-data"]
 run = "uv run pytest tests/e2e/ -v -m e2e"
 
 [tasks.test-e2e-cloud]
-description = "Run E2E tests against Cloud ClickHouse"
+description = "Run E2E tests against Cloud ClickHouse (auto-seeds if empty)"
 env = { CLICKHOUSE_MODE = "cloud" }
-depends = ["_check-source", "_check-credentials", "_check-cloud-data"]
+# ADR: 2025-12-10 - Use _ensure-* for consistent auto-seeding behavior
+depends = ["_check-source", "_ensure-cloud-data"]
 run = "uv run pytest tests/e2e/ -v -m e2e"
 
 [tasks.validate-local]
 description = "Full validation of Local ClickHouse"
 env = { CLICKHOUSE_MODE = "local" }
-depends = ["_check-source", "_check-local-server", "local-validate", "_check-local-data", "dbeaver-validate", "test-e2e-local"]
+# ADR: 2025-12-10 - dbeaver-generate BEFORE validate (fresh clones need config generated)
+depends = ["_check-source", "_check-local-server", "local-validate", "_check-local-data", "dbeaver-generate", "dbeaver-validate", "test-e2e-local"]
 run = """
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -380,7 +447,8 @@ echo "════════════════════════�
 [tasks.validate-cloud]
 description = "Full validation of Cloud ClickHouse"
 env = { CLICKHOUSE_MODE = "cloud" }
-depends = ["_check-source", "_check-credentials", "cloud-validate", "_check-cloud-data", "dbeaver-validate", "test-e2e-cloud"]
+# ADR: 2025-12-10 - dbeaver-generate BEFORE validate (fresh clones need config generated)
+depends = ["_check-source", "_check-credentials", "cloud-validate", "_check-cloud-data", "dbeaver-generate", "dbeaver-validate", "test-e2e-cloud"]
 run = """
 echo ""
 echo "═══════════════════════════════════════════════════════════"

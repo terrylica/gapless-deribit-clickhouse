@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gapless_deribit_clickhouse.features.config import DEFAULT_CONFIG
 from gapless_deribit_clickhouse.features.greeks import (
     calculate_greeks,
     calculate_portfolio_greeks,
@@ -176,7 +175,8 @@ class TestCalculatePortfolioGreeks:
 
     def test_empty_portfolio_returns_zeros(self) -> None:
         """Test empty DataFrame returns zero Greeks."""
-        df = pd.DataFrame(columns=["adjusted_delta", "gamma", "vega", "theta", "amount", "spot_price"])
+        cols = ["adjusted_delta", "gamma", "vega", "theta", "amount", "spot_price"]
+        df = pd.DataFrame(columns=cols)
         result = calculate_portfolio_greeks(df)
 
         assert result["net_delta"] == 0.0

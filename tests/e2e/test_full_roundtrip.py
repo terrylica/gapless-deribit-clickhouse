@@ -61,7 +61,9 @@ class TestFullRoundtrip:
         if len(df) > 1:
             # Assuming default order is DESC
             timestamps = df["timestamp"].tolist()
-            assert timestamps == sorted(timestamps, reverse=True), "Trades not ordered by timestamp DESC"
+            assert timestamps == sorted(timestamps, reverse=True), (
+                "Trades not ordered by timestamp DESC"
+            )
 
 
 @pytest.mark.e2e

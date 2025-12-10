@@ -4,8 +4,8 @@
 import pytest
 
 from gapless_deribit_clickhouse.features.config import (
-    DEFAULT_CONFIG,
     CONSERVATIVE_CONFIG,
+    DEFAULT_CONFIG,
     HIGH_FREQUENCY_CONFIG,
     FeatureConfig,
 )

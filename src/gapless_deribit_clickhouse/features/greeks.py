@@ -134,9 +134,10 @@ def calculate_greeks(
 
     if valid_mask.any():
         # Extract valid data as numpy arrays for vectorized calculation
+        # Using lowercase variable names per PEP 8 (N806)
         flag = df.loc[valid_mask, "_flag"].values
-        S = df.loc[valid_mask, spot_col].values.astype(np.float64)
-        K = df.loc[valid_mask, "strike"].values.astype(np.float64)
+        spot = df.loc[valid_mask, spot_col].values.astype(np.float64)
+        strike = df.loc[valid_mask, "strike"].values.astype(np.float64)
         t = df.loc[valid_mask, "T"].values.astype(np.float64)
         r = config.risk_free_rate
         sigma = df.loc[valid_mask, iv_col].values.astype(np.float64)
@@ -144,10 +145,10 @@ def calculate_greeks(
         # Vectorized Greeks calculation (all rows at once)
         # py_vollib_vectorized returns DataFrames - extract values with .values.flatten()
         # First call may be slower due to numba JIT compilation
-        delta_result = bs_delta_func(flag, S, K, t, r, sigma)
-        gamma_result = gamma_func(flag, S, K, t, r, sigma)
-        vega_result = vega_func(flag, S, K, t, r, sigma)
-        theta_result = theta_func(flag, S, K, t, r, sigma)
+        delta_result = bs_delta_func(flag, spot, strike, t, r, sigma)
+        gamma_result = gamma_func(flag, spot, strike, t, r, sigma)
+        vega_result = vega_func(flag, spot, strike, t, r, sigma)
+        theta_result = theta_func(flag, spot, strike, t, r, sigma)
 
         # Extract numpy arrays from DataFrame results
         df.loc[valid_mask, "bs_delta"] = delta_result.values.flatten()

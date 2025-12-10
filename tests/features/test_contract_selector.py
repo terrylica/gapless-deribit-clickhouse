@@ -5,9 +5,8 @@ These tests validate SQL query generation without requiring ClickHouse.
 Integration tests requiring ClickHouse are marked with @pytest.mark.e2e.
 """
 
-import pytest
 
-from gapless_deribit_clickhouse.features.config import DEFAULT_CONFIG, FeatureConfig
+from gapless_deribit_clickhouse.features.config import FeatureConfig
 from gapless_deribit_clickhouse.features.contract_selector import (
     build_contract_selection_query,
 )

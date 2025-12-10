@@ -94,10 +94,12 @@ def cmd_init() -> int:
     order_by_clause = ", ".join(schema.clickhouse.order_by)
     partition_clause = schema.clickhouse.partition_by
 
+    # Build columns SQL with newlines (avoid f-string escape sequence issue in Python 3.11)
+    columns_block = ",\n".join(columns_sql)
     create_table_sql = f"""
 CREATE TABLE IF NOT EXISTS {schema.full_table_name}
 (
-{",\n".join(columns_sql)}
+{columns_block}
 )
 ENGINE = {schema.clickhouse.engine}
 PARTITION BY {partition_clause}

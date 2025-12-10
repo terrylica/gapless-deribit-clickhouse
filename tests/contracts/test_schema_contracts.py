@@ -8,7 +8,6 @@ ADR: 2025-12-08-clickhouse-naming-convention
 """
 
 import re
-from pathlib import Path
 
 import pytest
 

@@ -22,10 +22,16 @@ Phase 2 Features (Contract Selection & Spot Integration):
 
 # Configuration
 from gapless_deribit_clickhouse.features.config import (
-    DEFAULT_CONFIG,
     CONSERVATIVE_CONFIG,
+    DEFAULT_CONFIG,
     HIGH_FREQUENCY_CONFIG,
     FeatureConfig,
+)
+
+# Phase 2: Contract Selection & Spot Integration
+from gapless_deribit_clickhouse.features.contract_selector import (
+    build_contract_selection_query,
+    select_contracts,
 )
 
 # Phase 1: IV-Only Features
@@ -35,28 +41,22 @@ from gapless_deribit_clickhouse.features.egarch import (
     fit_egarch,
     forecast_volatility,
 )
-from gapless_deribit_clickhouse.features.iv_percentile import iv_percentile
-from gapless_deribit_clickhouse.features.pcr import pcr_by_tenor
-from gapless_deribit_clickhouse.features.resampler import resample_iv
-from gapless_deribit_clickhouse.features.term_structure import term_structure_slope
-
-# Phase 2: Contract Selection & Spot Integration
-from gapless_deribit_clickhouse.features.contract_selector import (
-    build_contract_selection_query,
-    select_contracts,
-)
 from gapless_deribit_clickhouse.features.greeks import (
     calculate_greeks,
     calculate_portfolio_greeks,
 )
+from gapless_deribit_clickhouse.features.iv_percentile import iv_percentile
 from gapless_deribit_clickhouse.features.moneyness import (
     aggregate_by_moneyness,
     build_moneyness_aggregation_query,
 )
+from gapless_deribit_clickhouse.features.pcr import pcr_by_tenor
+from gapless_deribit_clickhouse.features.resampler import resample_iv
 from gapless_deribit_clickhouse.features.spot_provider import (
     build_spot_enriched_query,
     enrich_with_spot,
 )
+from gapless_deribit_clickhouse.features.term_structure import term_structure_slope
 
 __all__ = [
     # Configuration
