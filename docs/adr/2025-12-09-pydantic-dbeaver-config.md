@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: implemented
 date: 2025-12-09
 decision-maker: Terry Li
 consulted: [DBeaver-Config-Agent, macOS-Launch-Agent, Pydantic-SSoT-Agent]

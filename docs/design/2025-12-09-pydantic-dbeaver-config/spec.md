@@ -1,7 +1,7 @@
 ---
 adr: 2025-12-09-pydantic-dbeaver-config
 source: ~/.claude/plans/humble-wobbling-walrus.md
-implementation-status: in_progress
+implementation-status: completed
 phase: phase-1
 last-updated: 2025-12-09
 ---

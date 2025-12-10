@@ -14,7 +14,7 @@ plugins:
 
   # Update version in pyproject.toml and build package
   - - "@semantic-release/exec"
-    - prepareCmd: "sed -i.bak 's/^version = \".*\"/version = \"${nextRelease.version}\"/' pyproject.toml && rm pyproject.toml.bak && uv build"
+    - prepareCmd: "sed -i.bak 's/^version = \".*\"/version = \"${nextRelease.version}\"/' pyproject.toml && rm pyproject.toml.bak && ~/.local/share/mise/installs/uv/0.9.17/uv-aarch64-apple-darwin/uv build"
       publishCmd: "echo 'Python package built successfully'"
 
   # Commit version changes back to repository
