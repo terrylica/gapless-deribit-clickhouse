@@ -24,6 +24,7 @@ classifiers = [
 ]
 dependencies = [
     "httpx>=0.28.0",
+    "numpy>=1.24.0,<2.0.0",  # Pinned for alpha-forge compatibility
     "pandas>=2.0.0",
     "pydantic>=2.0.0",
     "tenacity>=9.0.0",
@@ -42,6 +43,8 @@ dev = [
 features = [
     "arch>=8.0.0",              # EGARCH volatility modeling
     "py-vollib-vectorized",     # Greeks calculation (Phase 2)
+    "scipy>=1.10.0",            # Interpolation for spot gaps
+    "gapless-crypto-clickhouse>=8.0.0",  # Spot price data (Phase 2)
 ]
 
 [project.urls]

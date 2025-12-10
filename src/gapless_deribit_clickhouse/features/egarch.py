@@ -14,12 +14,14 @@ Configuration (from ADR research):
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import pandas as pd
 
 if TYPE_CHECKING:
     from arch.univariate.base import ARCHModelResult
+
+from gapless_deribit_clickhouse.features.config import DEFAULT_CONFIG, FeatureConfig
 
 # EGARCH model parameters (validated in ADR research)
 DEFAULT_P = 1  # ARCH order
@@ -126,6 +128,84 @@ def fit_egarch(
         result._scale_factor = 1.0  # type: ignore[attr-defined]
 
     return result
+
+
+def auto_select_egarch(
+    iv_series: pd.Series,
+    p_range: tuple[int, int] = (1, 2),
+    q_range: tuple[int, int] = (1, 2),
+    criterion: Literal["aic", "bic"] = "aic",
+    config: FeatureConfig = DEFAULT_CONFIG,
+) -> ARCHModelResult:
+    """
+    Auto-select EGARCH order using information criteria grid search.
+
+    Since no pmdarima equivalent exists for GARCH models, this function
+    performs a grid search over (p, q) combinations and selects the model
+    with the lowest AIC or BIC.
+
+    The asymmetry order (o) is fixed at 1 as this is the standard EGARCH
+    specification that captures the leverage effect.
+
+    Args:
+        iv_series: Resampled IV (MUST be regular time series)
+        p_range: (min_p, max_p) for ARCH order search (default: (1, 2))
+        q_range: (min_q, max_q) for GARCH order search (default: (1, 2))
+        criterion: Selection criterion - 'aic' or 'bic' (default: 'aic')
+        config: FeatureConfig for distribution and other parameters
+
+    Returns:
+        Best fitted ARCHModelResult based on criterion
+
+    Raises:
+        ValueError: If no valid model could be fit
+        ImportError: If arch package not installed
+
+    Example:
+        >>> from gapless_deribit_clickhouse.features import resample_iv, auto_select_egarch
+        >>> resampled = resample_iv(trades_df)
+        >>> best_model = auto_select_egarch(resampled["iv_close"])
+        >>> print(f"Selected: EGARCH({best_model.model.p}, 1, {best_model.model.q})")
+        >>> print(f"AIC: {best_model.aic:.2f}")
+    """
+    best_result: ARCHModelResult | None = None
+    best_score = float("inf")
+    best_params: tuple[int, int] | None = None
+
+    for p in range(p_range[0], p_range[1] + 1):
+        for q in range(q_range[0], q_range[1] + 1):
+            try:
+                result = fit_egarch(
+                    iv_series,
+                    p=p,
+                    o=config.egarch_o,  # Asymmetry order fixed
+                    q=q,
+                    dist=config.egarch_dist,
+                )
+                score = result.aic if criterion == "aic" else result.bic
+
+                if score < best_score:
+                    best_score = score
+                    best_result = result
+                    best_params = (p, q)
+
+            except (ValueError, RuntimeError):
+                # Skip combinations that fail to converge
+                continue
+
+    if best_result is None:
+        raise ValueError(
+            f"No valid EGARCH model found in grid search "
+            f"(p={p_range}, q={q_range}). Check data quality."
+        )
+
+    # Store selection metadata for diagnostics
+    best_result._auto_selected = True  # type: ignore[attr-defined]
+    best_result._selection_criterion = criterion  # type: ignore[attr-defined]
+    best_result._selection_score = best_score  # type: ignore[attr-defined]
+    best_result._selected_params = best_params  # type: ignore[attr-defined]
+
+    return best_result
 
 
 def forecast_volatility(
