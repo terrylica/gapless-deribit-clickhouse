@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/terrylica/gapless-deribit-clickhouse/compare/v2.0.0...v2.1.0) (2025-12-10)
+
+
+### Features
+
+* add alpha features module for Deribit options data ([cc71d0f](https://github.com/terrylica/gapless-deribit-clickhouse/commit/cc71d0f69105da4f18a5c2e7a40795dd9895732a))
+
 # [2.0.0](https://github.com/terrylica/gapless-deribit-clickhouse/compare/v1.0.0...v2.0.0) (2025-12-10)
 
 
