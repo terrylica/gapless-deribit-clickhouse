@@ -1,3 +1,10 @@
+## [2.2.1](https://github.com/terrylica/gapless-deribit-clickhouse/compare/v2.2.0...v2.2.1) (2025-12-10)
+
+
+### Bug Fixes
+
+* mise task dependencies, clickhouse-connect version, and add Phase 1 tests ([4b6bef1](https://github.com/terrylica/gapless-deribit-clickhouse/commit/4b6bef16007ef615c8cfcc7c09f5f943938ea49a))
+
 # [2.2.0](https://github.com/terrylica/gapless-deribit-clickhouse/compare/v2.1.0...v2.2.0) (2025-12-10)
 
 
