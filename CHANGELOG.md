@@ -1,3 +1,27 @@
+# [2.0.0](https://github.com/terrylica/gapless-deribit-clickhouse/compare/v1.0.0...v2.0.0) (2025-12-10)
+
+
+### Features
+
+* add Pydantic-based DBeaver connection configuration ([8f41bdc](https://github.com/terrylica/gapless-deribit-clickhouse/commit/8f41bdcbd4544b9eb0e2eb9a1a27389810321155))
+
+
+### BREAKING CHANGES
+
+* Adds new config module to package structure
+
+# [2.0.0](https://github.com/terrylica/gapless-deribit-clickhouse/compare/v1.0.0...v2.0.0) (2025-12-10)
+
+
+### Features
+
+* add Pydantic-based DBeaver connection configuration ([8f41bdc](https://github.com/terrylica/gapless-deribit-clickhouse/commit/8f41bdcbd4544b9eb0e2eb9a1a27389810321155))
+
+
+### BREAKING CHANGES
+
+* Adds new config module to package structure
+
 # [1.0.0](https://github.com/terrylica/gapless-deribit-clickhouse/compare/v0.1.0...v1.0.0) (2025-12-09)
 
 
