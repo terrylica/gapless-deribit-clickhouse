@@ -53,3 +53,8 @@ tmp/
 
 # Node.js (for semantic-release)
 node_modules/
+
+# DBeaver credentials (generated, contains passwords)
+# ADR: 2025-12-09-pydantic-dbeaver-config
+.dbeaver/data-sources.json
+.dbeaver/credentials-config.json

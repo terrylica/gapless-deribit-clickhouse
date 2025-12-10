@@ -310,3 +310,43 @@ run = "echo '✓ Ready for release'"
 description = "Start development environment"
 depends = ["ch-start", "local-init"]
 run = "echo '✓ Development environment ready'"
+
+# =============================================================================
+# DBeaver Configuration Tasks
+# ADR: 2025-12-09-pydantic-dbeaver-config
+# =============================================================================
+
+[tasks.dbeaver-generate]
+description = "Generate DBeaver config from Pydantic models"
+run = "uv run scripts/generate_dbeaver_config.py"
+
+[tasks.dbeaver-validate]
+description = "Validate DBeaver config JSON syntax"
+run = "uv run python -c \"import json; json.load(open('.dbeaver/data-sources.json')); print('✓ Valid JSON')\""
+
+[tasks.dbeaver]
+description = "Launch DBeaver with project config (macOS)"
+depends = ["dbeaver-generate"]
+run = "/Applications/DBeaver.app/Contents/MacOS/dbeaver &"
+
+[tasks.db-connect-info]
+description = "Print connection settings for any GUI tool"
+run = """
+echo "=== ClickHouse Connection Settings ==="
+echo ""
+echo "LOCAL (development):"
+echo "  Host:     localhost"
+echo "  Port:     8123 (HTTP)"
+echo "  Database: deribit"
+echo "  User:     default"
+echo "  Password: (empty)"
+echo "  SSL:      No"
+echo ""
+echo "CLOUD (production):"
+echo "  Host:     $CLICKHOUSE_HOST_READONLY"
+echo "  Port:     443 (HTTPS)"
+echo "  Database: deribit"
+echo "  User:     $CLICKHOUSE_USER_READONLY"
+echo "  Password: (from .env)"
+echo "  SSL:      Yes"
+"""

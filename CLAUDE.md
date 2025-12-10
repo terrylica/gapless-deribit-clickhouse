@@ -125,8 +125,50 @@ For significant changes, use the `/itp:itp` slash command:
 - `docs/adr/YYYY-MM-DD-slug.md` - ADR with MADR 4.0 frontmatter
 - `docs/design/YYYY-MM-DD-slug/spec.md` - Design spec with tasks
 
+## DBeaver Configuration
+
+**ADR**: [Pydantic-Based DBeaver Config](/docs/adr/2025-12-09-pydantic-dbeaver-config.md)
+
+**Pattern**: Pydantic SSoT → Generator → DBeaver JSON
+
+### Quick Start
+
+```bash
+# Generate DBeaver config (reads .env for cloud credentials)
+mise run dbeaver-generate
+
+# Launch DBeaver with project connections
+mise run dbeaver
+
+# Print connection settings for any GUI tool
+mise run db-connect-info
+```
+
+### Connection Settings
+
+| Mode  | Host                                        | Port | Database | User    | SSL |
+| ----- | ------------------------------------------- | ---- | -------- | ------- | --- |
+| Local | `localhost`                                 | 8123 | deribit  | default | No  |
+| Cloud | `ebmf8f35lu.us-west-2.aws.clickhouse.cloud` | 443  | deribit  | default | Yes |
+
+### Files
+
+| File                                 | Purpose                | Git Status  |
+| ------------------------------------ | ---------------------- | ----------- |
+| `src/.../config/connections.py`      | Pydantic models (SSoT) | Committed   |
+| `scripts/generate_dbeaver_config.py` | Generator script       | Committed   |
+| `.dbeaver/data-sources.json`         | Generated config       | **Ignored** |
+| `.dbeaver/data-sources.schema.json`  | JSON Schema for IDE    | Committed   |
+
+### Modifying Connections
+
+1. Edit `src/gapless_deribit_clickhouse/config/connections.py`
+2. Run `mise run dbeaver-generate`
+3. Launch DBeaver to verify
+
 ## References
 
 - **ADR**: [ClickHouse Naming Convention](/docs/adr/2025-12-08-clickhouse-naming-convention.md)
+- **ADR**: [Pydantic-Based DBeaver Config](/docs/adr/2025-12-09-pydantic-dbeaver-config.md)
 - **Pattern source**: gapless-network-data schema loader
 - **Contract tests pattern**: alpha-forge

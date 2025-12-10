@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "ConnectionMode": {
+      "description": "Connection mode determines SSL and default credentials.",
+      "enum": [
+        "local",
+        "cloud"
+      ],
+      "title": "ConnectionMode",
+      "type": "string"
+    }
+  },
+  "description": "ClickHouse connection configuration.\n\nThis model serves as the Single Source of Truth for connection settings.\nThe generator script reads these models and produces DBeaver-compatible JSON.",
+  "properties": {
+    "mode": {
+      "$ref": "#/$defs/ConnectionMode",
+      "description": "Connection mode (local/cloud)"
+    },
+    "name": {
+      "description": "Display name in DBeaver",
+      "title": "Name",
+      "type": "string"
+    },
+    "host": {
+      "description": "ClickHouse server hostname",
+      "title": "Host",
+      "type": "string"
+    },
+    "port": {
+      "description": "ClickHouse server port",
+      "title": "Port",
+      "type": "integer"
+    },
+    "database": {
+      "default": "deribit",
+      "description": "Database name",
+      "title": "Database",
+      "type": "string"
+    },
+    "user": {
+      "default": "default",
+      "description": "Username",
+      "title": "User",
+      "type": "string"
+    },
+    "password": {
+      "default": "",
+      "description": "Password (empty for local)",
+      "title": "Password",
+      "type": "string"
+    },
+    "ssl": {
+      "default": false,
+      "description": "Use SSL/TLS connection",
+      "title": "Ssl",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "mode",
+    "name",
+    "host",
+    "port"
+  ],
+  "title": "ClickHouseConnection",
+  "type": "object"
+}
