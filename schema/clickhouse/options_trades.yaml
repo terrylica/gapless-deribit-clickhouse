@@ -113,6 +113,15 @@ properties:
     x-pandas:
       dtype: "Float64"
 
+  mark_price:
+    type: ["number", "null"]
+    minimum: 0
+    description: "Mark price at trade time (for execution analysis)"
+    x-clickhouse:
+      type: "Nullable(Float64)"
+    x-pandas:
+      dtype: "Float64"
+
   # Derived fields (parsed from instrument_name)
   underlying:
     type: string

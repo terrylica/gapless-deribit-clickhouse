@@ -63,8 +63,67 @@ description = "Run unit tests only (no credentials)"
 depends = ["lint"]
 run = "uv run pytest tests/ -v -m 'not slow and not e2e'"
 
+# =============================================================================
+# E2E Validation Flow (Proper Dependency Chain)
+# =============================================================================
+# The validation flow ensures prerequisites are met before running tests:
+#
+#   _check-source → _check-data-exists → test-e2e
+#                          ↓ (if empty)
+#                    seed-sample-data
+#
+# This prevents the "empty database" test failure scenario.
+
+[tasks._check-source]
+description = "Verify Deribit API source is reachable"
+hide = true
+run = """
+curl -sf "https://history.deribit.com/api/v2/public/get_last_trades_by_currency_and_time?currency=BTC&kind=option&count=1&start_timestamp=0&end_timestamp=1704067200000" > /dev/null && \
+  echo "✓ Deribit API reachable" || \
+  { echo "❌ Deribit API unreachable"; exit 1; }
+"""
+
+[tasks._check-data-exists]
+description = "Verify ClickHouse has sufficient data for E2E tests"
+hide = true
+depends = ["_check-credentials"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse.clickhouse.connection import get_client
+client = get_client()
+count = client.command('SELECT count() FROM deribit.options_trades')
+if count < 100:
+    print(f'❌ Insufficient data: {count} rows (need >= 100)')
+    print('   Run: mise run seed-sample-data')
+    exit(1)
+print(f'✓ ClickHouse has {count:,} rows')
+"
+"""
+
+[tasks.seed-sample-data]
+description = "Seed ClickHouse with 1 day of real Deribit data"
+depends = ["_check-credentials", "_check-source"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse import collect_trades
+import logging
+logging.basicConfig(level=logging.INFO)
+
+print('Seeding ClickHouse with 1 day of BTC options trades...')
+df = collect_trades(
+    currency='BTC',
+    start_date='2024-12-01',
+    end_date='2024-12-02',
+    insert_to_db=True,
+    resume=False
+)
+print(f'✓ Seeded {len(df):,} trades')
+"
+"""
+
 [tasks.test-e2e]
-description = "Run E2E tests (requires credentials)"
+description = "Run E2E tests (requires credentials + data)"
+depends = ["_check-source", "_check-data-exists"]
 run = "uv run pytest tests/e2e/ -v -m e2e"
 
 [tasks.test-contracts]
@@ -181,7 +240,7 @@ run = "echo '✓ Local and cloud schemas aligned with YAML SSoT'"
 [tasks.e2e-validate]
 description = "E2E validation: collect real Deribit data to local ClickHouse"
 env = { CLICKHOUSE_MODE = "local" }
-depends = ["local-init", "_check-local-server"]
+depends = ["local-init", "_check-local-server", "_check-source"]
 run = """
 uv run python -c "
 from gapless_deribit_clickhouse import collect_trades
@@ -208,6 +267,180 @@ print(f'Local ClickHouse has {count} rows')
 print('E2E validation PASSED')
 "
 """
+
+[tasks._check-cloud-data]
+description = "Verify Cloud ClickHouse has data"
+hide = true
+env = { CLICKHOUSE_MODE = "cloud" }
+depends = ["_check-credentials"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse.clickhouse.connection import get_client
+client = get_client()
+count = client.command('SELECT count() FROM deribit.options_trades')
+if count < 100:
+    print(f'❌ Cloud: insufficient data ({count} rows)')
+    exit(1)
+print(f'✓ Cloud ClickHouse: {count:,} rows')
+"
+"""
+
+[tasks._check-local-data]
+description = "Verify Local ClickHouse has data"
+hide = true
+env = { CLICKHOUSE_MODE = "local" }
+depends = ["_check-local-server"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse.clickhouse.connection import get_client
+client = get_client()
+count = client.command('SELECT count() FROM deribit.options_trades')
+if count < 100:
+    print(f'⚠️  Local: insufficient data ({count} rows)')
+    print('   Run: mise run seed-local')
+    exit(1)
+print(f'✓ Local ClickHouse: {count:,} rows')
+"
+"""
+
+[tasks.seed-local]
+description = "Seed Local ClickHouse with sample data"
+env = { CLICKHOUSE_MODE = "local" }
+depends = ["_check-source", "_check-local-server", "local-init"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse import collect_trades
+import logging
+logging.basicConfig(level=logging.INFO)
+
+print('Seeding Local ClickHouse with 1 day of BTC options trades...')
+df = collect_trades(
+    currency='BTC',
+    start_date='2024-12-01',
+    end_date='2024-12-02',
+    insert_to_db=True,
+    resume=False
+)
+print(f'✓ Local seeded with {len(df):,} trades')
+"
+"""
+
+[tasks.seed-cloud]
+description = "Seed Cloud ClickHouse with sample data"
+env = { CLICKHOUSE_MODE = "cloud" }
+depends = ["_check-source", "_check-credentials"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse import collect_trades
+import logging
+logging.basicConfig(level=logging.INFO)
+
+print('Seeding Cloud ClickHouse with 1 day of BTC options trades...')
+df = collect_trades(
+    currency='BTC',
+    start_date='2024-12-01',
+    end_date='2024-12-02',
+    insert_to_db=True,
+    resume=False
+)
+print(f'✓ Cloud seeded with {len(df):,} trades')
+"
+"""
+
+[tasks.test-e2e-local]
+description = "Run E2E tests against Local ClickHouse"
+env = { CLICKHOUSE_MODE = "local" }
+depends = ["_check-source", "_check-local-server", "_check-local-data"]
+run = "uv run pytest tests/e2e/ -v -m e2e"
+
+[tasks.test-e2e-cloud]
+description = "Run E2E tests against Cloud ClickHouse"
+env = { CLICKHOUSE_MODE = "cloud" }
+depends = ["_check-source", "_check-credentials", "_check-cloud-data"]
+run = "uv run pytest tests/e2e/ -v -m e2e"
+
+[tasks.validate-local]
+description = "Full validation of Local ClickHouse"
+env = { CLICKHOUSE_MODE = "local" }
+depends = ["_check-source", "_check-local-server", "local-validate", "_check-local-data", "dbeaver-validate", "test-e2e-local"]
+run = """
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  ✓ Local Validation Passed"
+echo "═══════════════════════════════════════════════════════════"
+echo "  • Deribit API: reachable"
+echo "  • Local ClickHouse: running"
+echo "  • Schema: YAML matches local database"
+echo "  • DBeaver config: Pydantic validated"
+echo "  • Data: sufficient rows"
+echo "  • E2E tests: passed"
+echo "═══════════════════════════════════════════════════════════"
+"""
+
+[tasks.validate-cloud]
+description = "Full validation of Cloud ClickHouse"
+env = { CLICKHOUSE_MODE = "cloud" }
+depends = ["_check-source", "_check-credentials", "cloud-validate", "_check-cloud-data", "dbeaver-validate", "test-e2e-cloud"]
+run = """
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  ✓ Cloud Validation Passed"
+echo "═══════════════════════════════════════════════════════════"
+echo "  • Deribit API: reachable"
+echo "  • Cloud credentials: configured"
+echo "  • Schema: YAML matches cloud database"
+echo "  • DBeaver config: Pydantic validated"
+echo "  • Data: sufficient rows"
+echo "  • E2E tests: passed"
+echo "═══════════════════════════════════════════════════════════"
+"""
+
+[tasks.validate-full]
+description = "Full validation: Local + Cloud (both environments)"
+# ADR: 2025-12-09-pydantic-dbeaver-config
+# Skill: clickhouse-pydantic-config (cc-skills)
+depends = ["_check-source", "dbeaver-generate", "dbeaver-validate", "validate-local", "validate-cloud"]
+run = """
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  ✓ FULL DUAL-MODE VALIDATION PASSED"
+echo "═══════════════════════════════════════════════════════════"
+echo "  • Deribit API: reachable"
+echo "  • Pydantic SSoT: DBeaver config validated"
+echo "  • Local ClickHouse: schema ✓ | data ✓ | E2E ✓"
+echo "  • Cloud ClickHouse: schema ✓ | data ✓ | E2E ✓"
+echo "═══════════════════════════════════════════════════════════"
+"""
+
+[tasks.validate-and-seed]
+description = "Validate with auto-seeding if database is empty"
+depends = ["_check-source", "_check-credentials", "schema-validate"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse.clickhouse.connection import get_client
+from gapless_deribit_clickhouse import collect_trades
+import logging
+logging.basicConfig(level=logging.INFO)
+
+client = get_client()
+count = client.command('SELECT count() FROM deribit.options_trades')
+print(f'Current data: {count:,} rows')
+
+if count < 100:
+    print('Insufficient data - auto-seeding with 1 day of trades...')
+    df = collect_trades(
+        currency='BTC',
+        start_date='2024-12-01',
+        end_date='2024-12-02',
+        insert_to_db=True,
+        resume=False
+    )
+    print(f'✓ Seeded {len(df):,} trades')
+else:
+    print('✓ Sufficient data exists')
+"
+"""
+depends_post = ["test-e2e"]
 
 [tasks.measure-volume]
 description = "Measure actual Deribit data volume for 1 day"
@@ -321,12 +554,14 @@ description = "Generate DBeaver config from Pydantic models"
 run = "uv run scripts/generate_dbeaver_config.py"
 
 [tasks.dbeaver-validate]
-description = "Validate DBeaver config JSON syntax"
-run = "uv run python -c \"import json; json.load(open('.dbeaver/data-sources.json')); print('✓ Valid JSON')\""
+description = "Validate DBeaver config with Pydantic schema"
+# ADR: 2025-12-09-pydantic-dbeaver-config
+# Skill: clickhouse-pydantic-config (cc-skills)
+run = "uv run scripts/validate_dbeaver_config.py"
 
 [tasks.dbeaver]
 description = "Launch DBeaver with project config (macOS)"
-depends = ["dbeaver-generate"]
+depends = ["dbeaver-generate", "dbeaver-validate"]
 run = "/Applications/DBeaver.app/Contents/MacOS/dbeaver &"
 
 [tasks.db-connect-info]
@@ -349,4 +584,134 @@ echo "  Database: deribit"
 echo "  User:     $CLICKHOUSE_USER_READONLY"
 echo "  Password: (from .env)"
 echo "  SSL:      Yes"
+"""
+
+# =============================================================================
+# Alpha Features Tasks
+# ADR: 2025-12-10-deribit-options-alpha-features
+# =============================================================================
+
+[tasks.features-demo]
+description = "Demo alpha features with sample data"
+depends = ["_check-credentials", "_check-data-exists"]
+run = """
+uv run python -c "
+from gapless_deribit_clickhouse.clickhouse.connection import get_client
+from gapless_deribit_clickhouse.features import (
+    resample_iv, iv_percentile, term_structure_slope, pcr_by_tenor, dte_bucket_agg
+)
+import pandas as pd
+
+print('=== Alpha Features Demo ===')
+print()
+
+# Fetch sample data
+client = get_client()
+df = client.query_df('''
+    SELECT timestamp, iv, amount, price, option_type,
+           dateDiff(day, toDate(timestamp), expiry) as dte
+    FROM deribit.options_trades
+    WHERE iv IS NOT NULL
+    ORDER BY timestamp DESC
+    LIMIT 10000
+''')
+
+print(f'Loaded {len(df):,} trades')
+print()
+
+# 1. Resample IV
+print('1. IV Resampling (15-min)...')
+try:
+    resampled = resample_iv(df)
+    print(f'   Resampled to {len(resampled)} bars')
+    print(f'   Columns: {list(resampled.columns)}')
+except Exception as e:
+    print(f'   Error: {e}')
+print()
+
+# 2. IV Percentile
+print('2. IV Percentile (90-day)...')
+try:
+    if len(resampled) > 0:
+        pct = iv_percentile(resampled['iv_close'], lookback_days=7)  # Use 7d for demo
+        print(f'   Latest percentile: {pct.dropna().iloc[-1]:.1f}%')
+except Exception as e:
+    print(f'   Error: {e}')
+print()
+
+# 3. PCR by Tenor
+print('3. Put-Call Ratio by Tenor...')
+try:
+    pcr = pcr_by_tenor(df)
+    print(f'   Buckets: {list(pcr.columns)}')
+    for col in pcr.columns[:3]:
+        latest = pcr[col].dropna().iloc[-1] if not pcr[col].dropna().empty else float('nan')
+        print(f'   {col}: {latest:.2f}')
+except Exception as e:
+    print(f'   Error: {e}')
+print()
+
+# 4. DTE Bucket Aggregations
+print('4. DTE Bucket Aggregations...')
+try:
+    dte_agg = dte_bucket_agg(df)
+    print(f'   Metrics: {len(dte_agg.columns)} columns')
+    print(f'   Sample: {list(dte_agg.columns)[:5]}')
+except Exception as e:
+    print(f'   Error: {e}')
+print()
+
+print('=== Demo Complete ===')
+"
+"""
+
+[tasks.features-test]
+description = "Run feature module tests"
+run = "uv run pytest tests/features/ -v"
+
+[tasks.features-benchmark]
+description = "Benchmark feature computation performance"
+depends = ["_check-credentials", "_check-data-exists"]
+run = """
+uv run python -c "
+import time
+from gapless_deribit_clickhouse.clickhouse.connection import get_client
+from gapless_deribit_clickhouse.features import resample_iv, iv_percentile
+
+print('=== Feature Benchmark ===')
+
+client = get_client()
+
+# Fetch 100k trades
+print('Fetching 100,000 trades...')
+start = time.time()
+df = client.query_df('''
+    SELECT timestamp, iv, amount, price, option_type,
+           dateDiff(day, toDate(timestamp), expiry) as dte
+    FROM deribit.options_trades
+    WHERE iv IS NOT NULL
+    ORDER BY timestamp DESC
+    LIMIT 100000
+''')
+fetch_time = time.time() - start
+print(f'  Fetch time: {fetch_time:.2f}s')
+
+# Benchmark resampling
+print('Benchmarking resample_iv...')
+start = time.time()
+resampled = resample_iv(df)
+resample_time = time.time() - start
+print(f'  Resample time: {resample_time:.2f}s ({len(resampled)} bars)')
+
+# Benchmark IV percentile
+print('Benchmarking iv_percentile...')
+start = time.time()
+pct = iv_percentile(resampled['iv_close'], lookback_days=90)
+percentile_time = time.time() - start
+print(f'  Percentile time: {percentile_time:.2f}s')
+
+print()
+print('Summary:')
+print(f'  Total: {fetch_time + resample_time + percentile_time:.2f}s')
+"
 """

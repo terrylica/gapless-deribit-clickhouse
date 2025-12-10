@@ -184,6 +184,8 @@ def _trade_to_row(trade: dict[str, Any]) -> dict[str, Any]:
     Convert API trade dict to database row.
 
     Parses instrument name to extract derived fields.
+
+    ADR: 2025-12-10-deribit-options-alpha-features (mark_price field)
     """
     instrument_name = trade["instrument_name"]
     parsed = parse_instrument(instrument_name)
@@ -197,6 +199,7 @@ def _trade_to_row(trade: dict[str, Any]) -> dict[str, Any]:
         "direction": trade["direction"],
         "iv": trade.get("iv"),
         "index_price": trade.get("index_price"),
+        "mark_price": trade.get("mark_price"),
         "underlying": parsed.underlying,
         "expiry": parsed.expiry,
         "strike": parsed.strike,

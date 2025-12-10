@@ -38,6 +38,11 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "ruff>=0.8.0",
 ]
+# ADR: 2025-12-10-deribit-options-alpha-features
+features = [
+    "arch>=8.0.0",              # EGARCH volatility modeling
+    "py-vollib-vectorized",     # Greeks calculation (Phase 2)
+]
 
 [project.urls]
 Repository = "https://github.com/Eon-Labs/gapless-deribit-clickhouse"
