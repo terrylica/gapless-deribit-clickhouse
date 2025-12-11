@@ -3,10 +3,13 @@ branches:
 
 plugins:
   # Analyze commits to determine version bump
-  - "@semantic-release/commit-analyzer"
+  # Use conventionalcommits preset for feat!: breaking change notation
+  - - "@semantic-release/commit-analyzer"
+    - preset: conventionalcommits
 
   # Generate release notes from commits
-  - "@semantic-release/release-notes-generator"
+  - - "@semantic-release/release-notes-generator"
+    - preset: conventionalcommits
 
   # Update CHANGELOG.md
   - - "@semantic-release/changelog"
