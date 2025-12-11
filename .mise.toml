@@ -647,6 +647,36 @@ echo "  SSL:      Yes"
 # ADR: 2025-12-10-deribit-options-alpha-features
 # =============================================================================
 
+# =============================================================================
+# Validation Pipeline Tasks
+# ADR: 2025-12-11-e2e-validation-pipeline
+# =============================================================================
+
+[tasks.validate-infra]
+description = "Validate infrastructure (dictionary, schema v3.0.0)"
+depends = ["_check-credentials"]
+run = "uv run python -m gapless_deribit_clickhouse.validation.infrastructure"
+
+[tasks.validate-quality]
+description = "Generate data quality report (server-side metrics)"
+depends = ["_check-credentials"]
+run = "uv run python -m gapless_deribit_clickhouse.validation.data_quality"
+
+[tasks.validate-report]
+description = "Print full validation report with mode indicator"
+depends = ["_check-credentials"]
+run = "uv run python -m gapless_deribit_clickhouse.validation.reporter"
+
+[tasks.validate-pipeline]
+description = "Complete validation pipeline (infra + quality + report)"
+depends = ["validate-infra", "validate-quality", "validate-report"]
+run = "echo '✓ Validation pipeline complete'"
+
+# =============================================================================
+# Alpha Features Tasks
+# ADR: 2025-12-10-deribit-options-alpha-features
+# =============================================================================
+
 [tasks.features-demo]
 description = "Demo alpha features with sample data"
 depends = ["_check-credentials", "_check-data-exists"]
