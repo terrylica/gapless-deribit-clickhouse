@@ -1,3 +1,13 @@
+## [3.0.0](https://github.com/terrylica/gapless-deribit-clickhouse/compare/v2.2.1...v3.0.0) (2025-12-11)
+
+### ⚠ BREAKING CHANGES
+
+* v3.0.0 schema optimization and performance fixes
+
+### Features
+
+* v3.0.0 schema optimization and performance fixes ([ed73e57](https://github.com/terrylica/gapless-deribit-clickhouse/commit/ed73e5741cab763118c6b335fe9501046a1cb33e))
+
 ## [2.2.1](https://github.com/terrylica/gapless-deribit-clickhouse/compare/v2.2.0...v2.2.1) (2025-12-10)
 
 
