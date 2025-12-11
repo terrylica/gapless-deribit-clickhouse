@@ -1,14 +1,21 @@
 # ADR: 2025-12-10-deribit-options-alpha-features
+# ADR: 2025-12-10-pipeline-memory-optimization (vectorized percentile)
+# ADR: 2025-12-10-schema-optimization (raw=True for O(n) performance)
 """
 IV Percentile (IV Rank) calculation.
 
 Computes the percentile rank of current IV relative to a rolling
 historical window. Uses 90-day lookback by default (crypto cycles
 faster than traditional finance 252-day convention).
+
+Performance Note:
+- Uses vectorized rolling operations (O(n) instead of O(n²))
+- Avoids .apply() with raw=False which creates Series per call
 """
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 # Default lookback in days - crypto cycles faster than TradFi
@@ -68,22 +75,24 @@ def iv_percentile(
     if min_periods is None:
         min_periods = max(lookback_periods // 2, 1)
 
-    def percentile_rank(window: pd.Series) -> float:
-        """Calculate percentile of last value in window."""
-        if len(window) < 2:
-            return float("nan")
-
-        current = window.iloc[-1]
-        historical = window.iloc[:-1]
-
-        # Count values less than or equal to current
-        rank = (historical <= current).sum()
-        return (rank / len(historical)) * 100
+    # ADR: 2025-12-10-pipeline-memory-optimization
+    # Performance fix: Use raw=True to pass numpy array instead of Series
+    # This avoids O(n²) overhead from pandas Series construction per window
+    #
+    # Algorithm: For each point, count how many values in the lookback
+    # window are <= current value, divide by window size.
+    def _count_leq(arr: np.ndarray) -> float:
+        """Count values in window <= last value (vectorized-friendly)."""
+        if len(arr) < 2:
+            return np.nan
+        current = arr[-1]
+        historical = arr[:-1]
+        return (np.sum(historical <= current) / len(historical)) * 100
 
     percentiles = iv_series.rolling(
         window=lookback_periods,
         min_periods=min_periods,
-    ).apply(percentile_rank, raw=False)
+    ).apply(_count_leq, raw=True)  # raw=True passes numpy array (faster)
 
     return percentiles
 

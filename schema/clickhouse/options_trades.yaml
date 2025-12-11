@@ -3,6 +3,7 @@
 # All Python types, DDL, and documentation are generated from this file.
 #
 # ADR: 2025-12-08-clickhouse-naming-convention
+# ADR: 2025-12-10-schema-optimization (ORDER BY, LowCardinality, codecs)
 
 $schema: "https://json-schema.org/draft/2020-12/schema"
 $id: "https://gapless-deribit-clickhouse/schema/deribit/options_trades"
@@ -13,12 +14,20 @@ description: |
   Backfillable from 2018 via history.deribit.com API.
   Used for options flow analysis and GEX calculation.
 
+  Schema Optimizations (v3.0.0):
+  - ORDER BY includes timestamp for 10-100x faster time-range queries
+  - LowCardinality for low-cardinality string columns (~30% storage savings)
+  - Compression codecs: DoubleDelta for timestamps, Gorilla for floats
+
 # ClickHouse-specific metadata (custom extension)
 x-clickhouse:
   database: deribit
   table: options_trades
   engine: ReplacingMergeTree()
-  order_by: [underlying, expiry, strike, option_type, trade_id]
+  # ADR: 2025-12-10-schema-optimization
+  # Timestamp added for 10-100x faster time-range queries
+  # Position: after expiry (low cardinality first principle)
+  order_by: [underlying, expiry, timestamp, strike, option_type, trade_id]
   partition_by: "toYYYYMM(timestamp)"
   settings:
     index_granularity: 8192
@@ -63,6 +72,8 @@ properties:
     x-clickhouse:
       type: "DateTime64(3)"
       not_null: true
+      # ADR: 2025-12-10-schema-optimization - 60-80% compression for monotonic timestamps
+      codec: "CODEC(DoubleDelta, ZSTD)"
     x-pandas:
       dtype: "datetime64[ns, UTC]"
 
@@ -73,6 +84,8 @@ properties:
     x-clickhouse:
       type: "Float64"
       not_null: true
+      # ADR: 2025-12-10-schema-optimization - 40-60% compression for floating-point
+      codec: "CODEC(Gorilla, ZSTD)"
     x-pandas:
       dtype: "float64"
 
@@ -82,6 +95,7 @@ properties:
     x-clickhouse:
       type: "Float64"
       not_null: true
+      codec: "CODEC(Gorilla, ZSTD)"
     x-pandas:
       dtype: "float64"
 
@@ -90,7 +104,8 @@ properties:
     enum: ["buy", "sell"]
     description: "Trade direction"
     x-clickhouse:
-      type: "String"
+      # ADR: 2025-12-10-schema-optimization - LowCardinality for <10k unique values
+      type: "LowCardinality(String)"
       not_null: true
     x-pandas:
       dtype: "str"
@@ -101,6 +116,7 @@ properties:
     description: "Implied volatility at trade time"
     x-clickhouse:
       type: "Nullable(Float64)"
+      codec: "CODEC(Gorilla, ZSTD)"
     x-pandas:
       dtype: "Float64"
 
@@ -110,6 +126,7 @@ properties:
     description: "Underlying index price at trade time"
     x-clickhouse:
       type: "Nullable(Float64)"
+      codec: "CODEC(Gorilla, ZSTD)"
     x-pandas:
       dtype: "Float64"
 
@@ -119,6 +136,7 @@ properties:
     description: "Mark price at trade time (for execution analysis)"
     x-clickhouse:
       type: "Nullable(Float64)"
+      codec: "CODEC(Gorilla, ZSTD)"
     x-pandas:
       dtype: "Float64"
 
@@ -128,7 +146,8 @@ properties:
     enum: ["BTC", "ETH"]
     description: "Underlying asset (derived from instrument_name)"
     x-clickhouse:
-      type: "String"
+      # ADR: 2025-12-10-schema-optimization - LowCardinality for <10k unique values
+      type: "LowCardinality(String)"
       not_null: true
     x-pandas:
       dtype: "str"
@@ -152,6 +171,7 @@ properties:
     x-clickhouse:
       type: "Float64"
       not_null: true
+      codec: "CODEC(Gorilla, ZSTD)"
     x-pandas:
       dtype: "float64"
     x-derived: true
@@ -161,7 +181,8 @@ properties:
     enum: ["C", "P"]
     description: "Option type: Call (C) or Put (P) (derived from instrument_name)"
     x-clickhouse:
-      type: "String"
+      # ADR: 2025-12-10-schema-optimization - LowCardinality for <10k unique values
+      type: "LowCardinality(String)"
       not_null: true
     x-pandas:
       dtype: "str"

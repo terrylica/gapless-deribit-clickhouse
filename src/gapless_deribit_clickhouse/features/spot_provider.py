@@ -1,4 +1,6 @@
 # ADR: 2025-12-10-deribit-options-alpha-features
+# ADR: 2025-12-10-pipeline-memory-optimization (dictionary validation)
+# ADR: 2025-12-10-schema-optimization (auto-fallback to JOIN)
 """
 Hybrid spot price provider using ClickHouse dictGet() for efficiency.
 
@@ -10,6 +12,11 @@ Performance Optimization:
 - dictGet() makes ~5 dictionary calls instead of scanning 10M rows
 - COMPLEX_KEY_HASHED layout enables O(1) lookups
 - coalesce() for hybrid logic computed server-side
+
+Safety:
+- Automatic dictionary existence validation before queries
+- Falls back to JOIN-based query if dictionary unavailable
+- Clear error messages guide users to run DDL setup
 
 Reference: https://clickhouse.com/blog/faster-queries-dictionaries-clickhouse
 
@@ -206,13 +213,18 @@ def enrich_with_spot(
     end: str | None = None,
     database: str = "deribit",
     table: str = "options_trades",
-    use_dict: bool = True,
+    use_dict: bool | None = None,
 ) -> pd.DataFrame:
     """
     Execute spot-enriched query and return DataFrame.
 
     This function enriches options data with spot prices using the
     hybrid approach (Deribit index_price + Binance fallback).
+
+    ADR: 2025-12-10-pipeline-memory-optimization (auto-validation)
+    - Automatically validates dictionary existence before use
+    - Falls back to JOIN-based query if dictionary unavailable
+    - Logs warning when fallback is used
 
     Args:
         client: ClickHouse client instance
@@ -222,7 +234,8 @@ def enrich_with_spot(
         end: End date (required if inner_query is None)
         database: ClickHouse database name
         table: ClickHouse table name
-        use_dict: If True, use dictGet() (faster)
+        use_dict: If True, use dictGet() (faster). If None (default),
+                 auto-detect based on dictionary existence.
 
     Returns:
         DataFrame with spot_price and moneyness columns added
@@ -241,7 +254,22 @@ def enrich_with_spot(
         >>> df = enrich_with_spot(client, inner_query=base_query)
         >>> print(df[["timestamp", "spot_price", "moneyness"]].head())
     """
+    import logging
+
     import pandas as pd
+
+    logger = logging.getLogger(__name__)
+
+    # ADR: 2025-12-10-pipeline-memory-optimization
+    # Auto-detect dictionary availability if use_dict not explicitly set
+    if use_dict is None:
+        dict_exists = check_spot_dictionary_exists(client)
+        use_dict = dict_exists
+        if not dict_exists:
+            logger.warning(
+                "spot_prices_dict not found - using JOIN fallback (slower). "
+                "Run: clickhouse-client < schema/clickhouse/spot_prices_dict.sql"
+            )
 
     query = build_spot_enriched_query(
         inner_query=inner_query,

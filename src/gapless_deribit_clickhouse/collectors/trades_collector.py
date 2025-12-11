@@ -12,6 +12,7 @@ Features:
 ADR: 2025-12-08-clickhouse-naming-convention
 ADR: 2025-12-08-clickhouse-data-pipeline-architecture (idempotency)
 ADR: 2025-12-08-mise-pagination-validation (pagination validation)
+ADR: 2025-12-10-schema-optimization (memory-bounded collection)
 """
 
 from __future__ import annotations
@@ -213,7 +214,9 @@ def collect_trades(
     end_date: str | None = None,
     insert_to_db: bool = True,
     resume: bool = True,
-) -> pd.DataFrame:
+    return_data: bool = True,
+    max_memory_rows: int = 100_000,
+) -> pd.DataFrame | dict[str, Any]:
     """
     Collect historical options trades from Deribit.
 
@@ -221,15 +224,25 @@ def collect_trades(
     interrupted, calling with the same parameters will resume from the
     last checkpoint.
 
+    Memory Management (ADR: 2025-12-10-pipeline-memory-optimization):
+    - For large backfills, set return_data=False to avoid memory exhaustion
+    - max_memory_rows limits in-memory accumulation (default 100k rows)
+    - Data is streamed to DB in batches, not accumulated in memory
+
     Args:
         currency: "BTC" or "ETH"
         start_date: Start date string (e.g., "2024-01-01")
         end_date: End date string (defaults to now)
         insert_to_db: If True, insert to ClickHouse
         resume: If True, resume from checkpoint if available
+        return_data: If True, return DataFrame (limited by max_memory_rows).
+                    If False, return stats dict only (for large backfills).
+        max_memory_rows: Maximum rows to keep in memory when return_data=True.
+                        Older rows are discarded to prevent memory exhaustion.
 
     Returns:
-        DataFrame with collected trades
+        If return_data=True: DataFrame with collected trades (up to max_memory_rows)
+        If return_data=False: Dict with collection stats (total_collected, batches, etc.)
     """
     # Convert dates to timestamps
     if start_date:
@@ -263,7 +276,12 @@ def collect_trades(
     end_label = end_date or "now"
     logger.info(f"Collecting {currency} options trades from {start_label} to {end_label}")
 
-    all_trades: list[dict[str, Any]] = []
+    # ADR: 2025-12-10-pipeline-memory-optimization
+    # Memory-bounded collection: only accumulate if return_data=True
+    # Use collections.deque with maxlen for bounded memory
+    from collections import deque
+
+    recent_trades: deque[dict[str, Any]] = deque(maxlen=max_memory_rows if return_data else 0)
     batch_trades: list[dict[str, Any]] = []
     last_log_time = datetime.now()
     prev_trades: list[dict[str, Any]] = []
@@ -293,7 +311,9 @@ def collect_trades(
 
         # Convert to rows
         rows = [_trade_to_row(trade) for trade in trades]
-        all_trades.extend(rows)
+        # Memory-bounded: recent_trades has maxlen, older rows auto-discarded
+        if return_data:
+            recent_trades.extend(rows)
         batch_trades.extend(rows)
 
         # Update cursor for next page
@@ -324,7 +344,8 @@ def collect_trades(
 
         # Progress logging
         if (datetime.now() - last_log_time).seconds >= PROGRESS_LOG_INTERVAL_SECONDS:
-            logger.info(f"Collected {len(all_trades)} trades so far (batch {batch_number})...")
+            collected = total_collected + len(batch_trades)
+            logger.info(f"Collected {collected} trades so far (batch {batch_number})...")
             last_log_time = datetime.now()
 
     # Insert remaining trades
@@ -342,12 +363,25 @@ def collect_trades(
     # Clear checkpoint on successful completion
     _clear_checkpoint(checkpoint_path)
 
-    logger.info(f"Collected {len(all_trades)} total trades in {batch_number} batches")
+    logger.info(f"Collected {total_collected} total trades in {batch_number} batches")
 
-    if not all_trades:
+    # ADR: 2025-12-10-pipeline-memory-optimization
+    # Return stats dict for large backfills (return_data=False)
+    # Return bounded DataFrame for small collections (return_data=True)
+    if not return_data:
+        return {
+            "total_collected": total_collected,
+            "batches": batch_number,
+            "pagination_warnings": pagination_warnings,
+            "currency": currency,
+            "start_date": start_label,
+            "end_date": end_label,
+        }
+
+    if not recent_trades:
         return pd.DataFrame()
 
-    return pd.DataFrame(all_trades)
+    return pd.DataFrame(list(recent_trades))
 
 
 def _insert_trades(df: pd.DataFrame) -> None:

@@ -100,16 +100,30 @@ print(f'✓ ClickHouse has {count:,} rows')
 "
 """
 
-[tasks.seed-sample-data]
-description = "Seed ClickHouse with 1 day of real Deribit data"
-depends = ["_check-credentials", "_check-source"]
+# ADR: 2025-12-10-schema-optimization - Consolidated seeding task
+# Replaces: seed-sample-data, seed-local, seed-cloud (7 tasks → 1 mode-aware task)
+[tasks.seed]
+description = "Seed ClickHouse with 1 day of real Deribit data (mode-aware)"
+depends = ["_check-source"]
 run = """
 uv run python -c "
 from gapless_deribit_clickhouse import collect_trades
+from gapless_deribit_clickhouse.clickhouse.connection import get_client
+import os
 import logging
 logging.basicConfig(level=logging.INFO)
 
-print('Seeding ClickHouse with 1 day of BTC options trades...')
+mode = os.environ.get('CLICKHOUSE_MODE', 'cloud')
+print(f'Seeding {mode.upper()} ClickHouse with 1 day of BTC options trades...')
+
+# Verify connection first
+try:
+    client = get_client()
+    client.command('SELECT 1')
+except Exception as e:
+    print(f'❌ Cannot connect to {mode} ClickHouse: {e}')
+    exit(1)
+
 df = collect_trades(
     currency='BTC',
     start_date='2024-12-01',
@@ -117,7 +131,7 @@ df = collect_trades(
     insert_to_db=True,
     resume=False
 )
-print(f'✓ Seeded {len(df):,} trades')
+print(f'✓ Seeded {len(df):,} trades to {mode} ClickHouse')
 "
 """
 
@@ -195,8 +209,8 @@ run = "uv run python -m gapless_deribit_clickhouse.schema.cli drop-legacy"
 [tasks.db-migrate]
 description = "Full migration: drop legacy + create new + validate"
 depends = ["db-drop", "db-init"]
-# ADR: 2025-12-10 - seed data BEFORE test-e2e (migration leaves DB empty)
-depends_post = ["seed-sample-data", "test-e2e"]
+# ADR: 2025-12-10-schema-optimization - use consolidated seed task
+depends_post = ["seed", "test-e2e"]
 run = "echo '✓ Migration complete'"
 
 # =============================================================================
@@ -367,49 +381,18 @@ else:
 "
 """
 
+# ADR: 2025-12-10-schema-optimization - Mode-specific aliases for seed task
 [tasks.seed-local]
-description = "Seed Local ClickHouse with sample data"
+description = "Seed Local ClickHouse (alias for: CLICKHOUSE_MODE=local mise run seed)"
 env = { CLICKHOUSE_MODE = "local" }
-depends = ["_check-source", "_check-local-server", "local-init"]
-run = """
-uv run python -c "
-from gapless_deribit_clickhouse import collect_trades
-import logging
-logging.basicConfig(level=logging.INFO)
-
-print('Seeding Local ClickHouse with 1 day of BTC options trades...')
-df = collect_trades(
-    currency='BTC',
-    start_date='2024-12-01',
-    end_date='2024-12-02',
-    insert_to_db=True,
-    resume=False
-)
-print(f'✓ Local seeded with {len(df):,} trades')
-"
-"""
+depends = ["_check-local-server", "local-init", "seed"]
+run = "echo '✓ Local seeding complete'"
 
 [tasks.seed-cloud]
-description = "Seed Cloud ClickHouse with sample data"
+description = "Seed Cloud ClickHouse (alias for: CLICKHOUSE_MODE=cloud mise run seed)"
 env = { CLICKHOUSE_MODE = "cloud" }
-depends = ["_check-source", "_check-credentials"]
-run = """
-uv run python -c "
-from gapless_deribit_clickhouse import collect_trades
-import logging
-logging.basicConfig(level=logging.INFO)
-
-print('Seeding Cloud ClickHouse with 1 day of BTC options trades...')
-df = collect_trades(
-    currency='BTC',
-    start_date='2024-12-01',
-    end_date='2024-12-02',
-    insert_to_db=True,
-    resume=False
-)
-print(f'✓ Cloud seeded with {len(df):,} trades')
-"
-"""
+depends = ["_check-credentials", "seed"]
+run = "echo '✓ Cloud seeding complete'"
 
 [tasks.test-e2e-local]
 description = "Run E2E tests against Local ClickHouse (auto-seeds if empty)"
@@ -480,8 +463,9 @@ echo "  • Cloud ClickHouse: schema ✓ | data ✓ | E2E ✓"
 echo "═══════════════════════════════════════════════════════════"
 """
 
+# ADR: 2025-12-10-schema-optimization - Simplified, no circular depends_post
 [tasks.validate-and-seed]
-description = "Validate with auto-seeding if database is empty"
+description = "Validate schema and auto-seed if database is empty"
 depends = ["_check-source", "_check-credentials", "schema-validate"]
 run = """
 uv run python -c "
@@ -506,9 +490,13 @@ if count < 100:
     print(f'✓ Seeded {len(df):,} trades')
 else:
     print('✓ Sufficient data exists')
+
+print()
+print('To run E2E tests: mise run test-e2e')
 "
 """
-depends_post = ["test-e2e"]
+# REMOVED: depends_post = ["test-e2e"] - caused circular dependency
+# User should explicitly run test-e2e after this task completes
 
 [tasks.measure-volume]
 description = "Measure actual Deribit data volume for 1 day"

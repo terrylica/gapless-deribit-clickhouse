@@ -5,7 +5,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gapless-deribit-clickhouse"
-version = "2.2.1"
+# ADR: 2025-12-10-schema-optimization - Breaking changes:
+# - Schema ORDER BY includes timestamp (requires table recreation)
+# - LowCardinality types for direction, underlying, option_type
+# - collect_trades() new params: return_data, max_memory_rows
+# - fetch_trades() new param: use_final
+version = "3.0.0"
 description = "Deribit options data pipeline with ClickHouse storage"
 readme = "README.md"
 license = "MIT"

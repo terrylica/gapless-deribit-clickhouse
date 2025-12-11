@@ -15,6 +15,7 @@ Usage:
     )
 
 ADR: 2025-12-08-clickhouse-naming-convention
+ADR: 2025-12-10-schema-optimization (FINAL clause for deduplication)
 """
 
 from __future__ import annotations
@@ -104,9 +105,12 @@ def fetch_trades(
     expiry: str | None = None,
     strike: float | None = None,
     limit: int | None = None,
+    use_final: bool = True,
 ) -> pd.DataFrame:
     """
     Fetch historical options trades from ClickHouse.
+
+    ADR: 2025-12-10-schema-optimization (FINAL clause for deduplication)
 
     Args:
         underlying: Filter by underlying asset ("BTC" or "ETH")
@@ -116,6 +120,8 @@ def fetch_trades(
         expiry: Filter by expiration date (YYYY-MM-DD)
         strike: Filter by strike price
         limit: Maximum rows to return
+        use_final: If True (default), use FINAL to deduplicate results.
+                  Set to False for faster queries when duplicates are acceptable.
 
     Returns:
         DataFrame with trade data
@@ -156,10 +162,13 @@ def fetch_trades(
 
     where_clause = " AND ".join(conditions) if conditions else "1=1"
     limit_clause = f"LIMIT {limit}" if limit else ""
+    # ADR: 2025-12-10-schema-optimization
+    # FINAL ensures deduplication with ReplacingMergeTree (trade_id uniqueness)
+    final_clause = "FINAL" if use_final else ""
 
     query = f"""
         SELECT *
-        FROM deribit.options_trades
+        FROM deribit.options_trades {final_clause}
         WHERE {where_clause}
         ORDER BY timestamp DESC
         {limit_clause}
