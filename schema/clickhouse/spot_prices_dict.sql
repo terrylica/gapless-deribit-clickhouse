@@ -11,16 +11,15 @@
 -- auto-refreshes based on LIFETIME settings (1-2 hours for spot prices).
 
 CREATE DICTIONARY IF NOT EXISTS spot_prices_dict (
-    -- LowCardinality for symbol: <10k unique symbols (BTC, ETH, etc.)
-    symbol LowCardinality(String),
+    -- NOTE: Dictionaries don't support LowCardinality - use plain String
+    symbol String,
     ts DateTime,
     close Float64
 )
 PRIMARY KEY symbol, ts
 SOURCE(CLICKHOUSE(
-    -- Query from gapless-crypto-clickhouse ohlcv table
+    -- NOTE: Can't use both TABLE and QUERY - use QUERY alone for custom SQL
     -- Resamples to 15-min bars to match options IV resampling frequency
-    TABLE 'ohlcv'
     QUERY "SELECT
         symbol,
         toStartOfFifteenMinutes(timestamp) AS ts,
