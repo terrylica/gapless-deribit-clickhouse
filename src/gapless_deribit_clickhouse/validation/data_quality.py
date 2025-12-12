@@ -38,8 +38,8 @@ SELECT
     countIf(index_price IS NULL OR index_price = 0) AS null_index_count,
     if(
         dateDiff('hour', min(timestamp), max(timestamp)) > 0,
-        count() / dateDiff('hour', min(timestamp), max(timestamp)),
-        count()
+        toFloat64(count()) / dateDiff('hour', min(timestamp), max(timestamp)),
+        toFloat64(count())
     ) AS avg_trades_per_hour
 FROM {database}.{table}
 """
@@ -241,14 +241,22 @@ if __name__ == "__main__":
 
     conn_info = get_connection_info()
 
+    # Mode-aware credentials: local uses default/empty, cloud uses READONLY env vars
+    if conn_info["mode"] == "local":
+        username = "default"
+        password = ""
+    else:
+        username = os.environ.get("CLICKHOUSE_USER_READONLY", "default")
+        password = os.environ.get("CLICKHOUSE_PASSWORD_READONLY", "")
+
     try:
         client = get_client(
             host=conn_info["host"],
             port=conn_info["port"],
             database=conn_info["database"],
             secure=conn_info["secure"],
-            username=os.environ.get("CLICKHOUSE_USER_READONLY", "default"),
-            password=os.environ.get("CLICKHOUSE_PASSWORD_READONLY", ""),
+            username=username,
+            password=password,
         )
 
         print("Data Quality Metrics")

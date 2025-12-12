@@ -35,15 +35,16 @@ EXPECTED_SCHEMA_VERSION = "3.0.0"
 
 # ADR: 2025-12-10-schema-optimization - Dictionary DDL
 # Reused from spot_provider.py concept, but defined here for auto-creation
+# NOTE: Dictionaries don't support LowCardinality - use plain String
+# NOTE: Can't use both TABLE and QUERY - use QUERY alone for custom SQL
 SPOT_DICT_DDL = """
 CREATE DICTIONARY IF NOT EXISTS spot_prices_dict (
-    symbol LowCardinality(String),
+    symbol String,
     ts DateTime,
     close Float64
 )
 PRIMARY KEY symbol, ts
 SOURCE(CLICKHOUSE(
-    TABLE 'ohlcv'
     QUERY "SELECT symbol, toStartOfFifteenMinutes(timestamp) AS ts, close
            FROM ohlcv WHERE timeframe = '15m' AND instrument_type = 'spot'"
 ))
@@ -263,14 +264,22 @@ if __name__ == "__main__":
     print(f"Mode: {get_mode_indicator()}")
     print(f"Connection: {conn_info}")
 
+    # Mode-aware credentials: local uses default/empty, cloud uses READONLY env vars
+    if conn_info["mode"] == "local":
+        username = "default"
+        password = ""
+    else:
+        username = os.environ.get("CLICKHOUSE_USER_READONLY", "default")
+        password = os.environ.get("CLICKHOUSE_PASSWORD_READONLY", "")
+
     try:
         client = get_client(
             host=conn_info["host"],
             port=conn_info["port"],
             database=conn_info["database"],
             secure=conn_info["secure"],
-            username=os.environ.get("CLICKHOUSE_USER_READONLY", "default"),
-            password=os.environ.get("CLICKHOUSE_PASSWORD_READONLY", ""),
+            username=username,
+            password=password,
         )
 
         # Validate infrastructure

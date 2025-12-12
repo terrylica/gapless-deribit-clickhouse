@@ -239,14 +239,22 @@ if __name__ == "__main__":
 
     conn_info = get_connection_info()
 
+    # Mode-aware credentials: local uses default/empty, cloud uses READONLY env vars
+    if conn_info["mode"] == "local":
+        username = "default"
+        password = ""
+    else:
+        username = os.environ.get("CLICKHOUSE_USER_READONLY", "default")
+        password = os.environ.get("CLICKHOUSE_PASSWORD_READONLY", "")
+
     try:
         client = get_client(
             host=conn_info["host"],
             port=conn_info["port"],
             database=conn_info["database"],
             secure=conn_info["secure"],
-            username=os.environ.get("CLICKHOUSE_USER_READONLY", "default"),
-            password=os.environ.get("CLICKHOUSE_PASSWORD_READONLY", ""),
+            username=username,
+            password=password,
         )
 
         # Ensure dictionary exists
