@@ -16,8 +16,22 @@ plugins:
     - changelogFile: CHANGELOG.md
 
   # Update version in pyproject.toml and build package
+  #
+  # The build step used to exec a hardcoded
+  # ~/.local/share/mise/installs/uv/0.9.17/uv-aarch64-apple-darwin/uv. mise was retired
+  # machine-wide (proto is the only toolchain manager), so that path stopped existing and
+  # the next release would have aborted on it. uv is installed at /opt/homebrew/bin/uv and
+  # always was; only the lookup was wrong, and it also pinned a uv version nothing else
+  # here pins. Resolved from PATH now, which is tool-agnostic.
+  #
+  # ORDER MATTERS: the `command -v uv` preflight runs BEFORE the sed. Previously the sed
+  # rewrote pyproject.toml's version and only then hit the dead uv path, so a failed
+  # release left the version bumped on disk with no build and no tag -- a half-applied
+  # state someone has to notice and undo by hand. Checking the tool first makes the failure
+  # clean. The sed cannot simply move after the build, because the build must embed the new
+  # version.
   - - "@semantic-release/exec"
-    - prepareCmd: "sed -i.bak 's/^version = \".*\"/version = \"${nextRelease.version}\"/' pyproject.toml && rm pyproject.toml.bak && ~/.local/share/mise/installs/uv/0.9.17/uv-aarch64-apple-darwin/uv build"
+    - prepareCmd: "command -v uv >/dev/null 2>&1 || { echo 'ERROR: uv not found on PATH - install it (brew install uv) or add it to PATH' >&2; exit 1; }; sed -i.bak 's/^version = \".*\"/version = \"${nextRelease.version}\"/' pyproject.toml && rm pyproject.toml.bak && uv build"
       publishCmd: "echo 'Python package built successfully'"
 
   # Commit version changes back to repository
