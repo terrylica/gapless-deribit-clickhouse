@@ -4,9 +4,8 @@
 #   moon run deribit:check       offline gate: lint + unit tests + contract tests + security scans
 #   moon run deribit:<task>      any single task below
 #
-# Tasks that need ClickHouse credentials (schema-validate, test-e2e, validate-*) read them from the
-# gitignored .env, which the Python code loads itself (see .env.example). They are uncached and
-# never part of `check`.
+# Credential-backed checks run as plain commands (the code loads the gitignored .env itself), e.g.
+#   uv run python -m gapless_deribit_clickhouse.schema.cli validate
 layer: 'library'
 language: 'python'
 
@@ -39,24 +38,3 @@ tasks:
     script: "echo 'deribit:check passed'"
     options: { cache: false }
 
-  # ── Need credentials in .env and the live ClickHouse Cloud service; run by hand ──
-  schema-validate:
-    script: 'uv run python -m gapless_deribit_clickhouse.schema.cli validate'
-    options: { cache: false }
-  test-e2e:
-    script: 'uv run pytest tests/e2e/ -v -m e2e'
-    options: { cache: false }
-  validate-pipeline:
-    script: >-
-      uv run python -m gapless_deribit_clickhouse.validation.infrastructure &&
-      uv run python -m gapless_deribit_clickhouse.validation.data_quality &&
-      uv run python -m gapless_deribit_clickhouse.validation.reporter
-    options: { cache: false }
-
-  # ── DBeaver connection config (Pydantic SSoT → .dbeaver/data-sources.json) ──
-  dbeaver-generate:
-    script: 'uv run scripts/generate_dbeaver_config.py'
-    options: { cache: false }
-  dbeaver-validate:
-    script: 'uv run scripts/validate_dbeaver_config.py'
-    options: { cache: false }

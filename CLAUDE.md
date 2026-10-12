@@ -42,7 +42,7 @@ schema = load_schema("options_trades")
 ### Schema Validation (Introspector)
 
 ```bash
-moon run deribit:schema-validate  # Compare YAML vs live ClickHouse
+uv run python -m gapless_deribit_clickhouse.schema.cli validate  # Compare YAML vs live ClickHouse
 ```
 
 ## Contract Tests (Architectural Invariants)
@@ -101,8 +101,6 @@ jdx/mise was uninstalled on 2026-08-21; `moon.yml` holds the tasks (`moon query 
 moon run deribit:check            # offline gate: lint + unit tests + contract tests + security
 moon run deribit:test             # unit tests (no credentials)
 moon run deribit:test-contracts   # schema + API contracts
-moon run deribit:test-e2e         # real Deribit API + ClickHouse (needs .env)
-moon run deribit:schema-validate  # YAML vs live ClickHouse (needs .env)
 moon run deribit:lint             # ruff check
 moon run deribit:security         # semgrep + gitleaks
 ```
@@ -137,8 +135,8 @@ For significant changes, use the `/itp:itp` slash command:
 
 ```bash
 # Generate DBeaver config (reads .env for cloud credentials)
-moon run deribit:dbeaver-generate
-moon run deribit:dbeaver-validate  # check it against the Pydantic schema, then open DBeaver
+uv run scripts/generate_dbeaver_config.py
+uv run scripts/validate_dbeaver_config.py  # check it against the Pydantic schema, then open DBeaver
 ```
 
 ### Connection Settings
@@ -160,7 +158,7 @@ moon run deribit:dbeaver-validate  # check it against the Pydantic schema, then 
 ### Modifying Connections
 
 1. Edit `src/gapless_deribit_clickhouse/config/connections.py`
-2. Run `moon run deribit:dbeaver-generate`
+2. Run `uv run scripts/generate_dbeaver_config.py`
 3. Launch DBeaver to verify
 
 ## References
