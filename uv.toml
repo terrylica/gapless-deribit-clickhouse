@@ -1,0 +1,2 @@
+# uv runs only its own managed CPython build (never a proto, Homebrew or system interpreter).
+python-preference = "only-managed"

@@ -4,9 +4,9 @@
 
 | Category               | Tool                         | Avoid                         |
 | ---------------------- | ---------------------------- | ----------------------------- |
-| **Task runner**        | `mise tasks` (`.mise.toml`)  | Make, just, Taskfile, Earthly |
+| **Task runner**        | moon (`moon.yml`)            | Make, just, Taskfile, Earthly |
 | **Python**             | `uv` (management, execution) | pip, conda, poetry            |
-| **Version management** | `mise` for tool versions     | asdf, nvm, pyenv              |
+| **Version management** | proto (`.prototools`); uv owns Python (`.python-version`) | mise, asdf, nvm, pyenv |
 | **Static analysis**    | Semgrep, Gitleaks            | ESLint (for Python)           |
 | **Containers**         | Local-first (avoid)          | Docker Compose, Earthly       |
 | **CI/CD**              | Local-first                  | GitHub Actions for tests      |
@@ -42,7 +42,7 @@ schema = load_schema("options_trades")
 ### Schema Validation (Introspector)
 
 ```bash
-mise run schema-validate  # Compare YAML vs live ClickHouse
+moon run deribit:schema-validate  # Compare YAML vs live ClickHouse
 ```
 
 ## Contract Tests (Architectural Invariants)
@@ -93,16 +93,18 @@ CLICKHOUSE_PASSWORD_READONLY=<from 1Password>
 
 **Avoid**: Doppler for this project (simplified to .env)
 
-## mise Tasks
+## moon Tasks
 
-```toml
-# .mise.toml
-[tasks.test-unit]      # No credentials needed
-[tasks.test-contracts] # Schema + API contracts
-[tasks.test-e2e]       # Real Deribit API
-[tasks.schema-validate] # YAML vs live ClickHouse
-[tasks.lint]           # ruff check
-[tasks.security]       # semgrep + gitleaks
+jdx/mise was retired on 2026-10-11; `moon.yml` holds the tasks (`moon query tasks` lists them).
+
+```bash
+moon run deribit:check            # offline gate: lint + unit tests + contract tests + security
+moon run deribit:test             # unit tests (no credentials)
+moon run deribit:test-contracts   # schema + API contracts
+moon run deribit:test-e2e         # real Deribit API + ClickHouse (needs .env)
+moon run deribit:schema-validate  # YAML vs live ClickHouse (needs .env)
+moon run deribit:lint             # ruff check
+moon run deribit:security         # semgrep + gitleaks
 ```
 
 ## ITP Workflow Integration
@@ -135,13 +137,8 @@ For significant changes, use the `/itp:itp` slash command:
 
 ```bash
 # Generate DBeaver config (reads .env for cloud credentials)
-mise run dbeaver-generate
-
-# Launch DBeaver with project connections
-mise run dbeaver
-
-# Print connection settings for any GUI tool
-mise run db-connect-info
+moon run deribit:dbeaver-generate
+moon run deribit:dbeaver-validate  # check it against the Pydantic schema, then open DBeaver
 ```
 
 ### Connection Settings
@@ -163,7 +160,7 @@ mise run db-connect-info
 ### Modifying Connections
 
 1. Edit `src/gapless_deribit_clickhouse/config/connections.py`
-2. Run `mise run dbeaver-generate`
+2. Run `moon run deribit:dbeaver-generate`
 3. Launch DBeaver to verify
 
 ## References

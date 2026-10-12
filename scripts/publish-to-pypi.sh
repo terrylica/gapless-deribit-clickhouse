@@ -23,7 +23,7 @@ set -euo pipefail
 # ENVIRONMENT DISCOVERY
 # ============================================================================
 # Discover how uv is installed before making assumptions.
-# Supports: direct install, Homebrew, cargo, mise, asdf, or already in PATH.
+# Supports: direct install, Homebrew, cargo, proto, asdf, or already in PATH.
 #
 # Non-interactive shells (like Claude Code) don't source shell configs,
 # so we need to find tools explicitly.
@@ -37,6 +37,7 @@ discover_uv() {
 
     # Priority 2: Check common direct installation locations
     local uv_locations=(
+        "$HOME/.proto/shims/uv"           # proto (pinned in .prototools)
         "$HOME/.local/bin/uv"             # Official curl installer
         "$HOME/.cargo/bin/uv"             # Cargo install
         "/opt/homebrew/bin/uv"            # macOS Homebrew (ARM)
@@ -50,24 +51,8 @@ discover_uv() {
         fi
     done
 
-    # Priority 3: Try version managers (mise, asdf) as fallback
+    # Priority 3: Try a version manager (asdf) as fallback
     # Only if uv not found directly - don't force any tool manager
-
-    # Try mise
-    local mise_locations=(
-        "$HOME/.local/bin/mise"
-        "/opt/homebrew/bin/mise"
-        "/usr/local/bin/mise"
-    )
-    for mise_path in "${mise_locations[@]}"; do
-        if [[ -x "$mise_path" ]]; then
-            # Check if mise has uv available
-            if "$mise_path" which uv &>/dev/null 2>&1; then
-                echo "$mise_path exec -- uv"
-                return 0
-            fi
-        fi
-    done
 
     # Try asdf
     if [[ -f "$HOME/.asdf/asdf.sh" ]]; then
@@ -104,8 +89,8 @@ else
     echo "   # Cargo"
     echo "   cargo install uv"
     echo ""
-    echo "   # mise"
-    echo "   mise use uv@latest"
+    echo "   # proto (this repo pins uv in .prototools)"
+    echo "   proto install"
     echo ""
     exit 1
 fi

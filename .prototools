@@ -1,0 +1,5 @@
+# proto — repo-local toolchain versions.
+# uv owns Python: the interpreter version is .python-version, and uv.toml makes uv use only its own
+# managed build. node is here for semantic-release (`npm run release`).
+uv = "latest"
+node = "latest"

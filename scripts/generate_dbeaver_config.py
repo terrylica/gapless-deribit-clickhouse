@@ -16,8 +16,8 @@ and generates:
 
 Usage:
     uv run scripts/generate_dbeaver_config.py
-    # or via mise:
-    mise run dbeaver-generate
+    # or via moon:
+    moon run deribit:dbeaver-generate
 """
 
 from __future__ import annotations

@@ -58,3 +58,7 @@ node_modules/
 # ADR: 2025-12-09-pydantic-dbeaver-config
 .dbeaver/data-sources.json
 .dbeaver/credentials-config.json
+
+# moon (task runner) local cache
+.moon/cache/
+.moon/docker/
