@@ -95,7 +95,7 @@ CLICKHOUSE_PASSWORD_READONLY=<from 1Password>
 
 ## moon Tasks
 
-jdx/mise was retired on 2026-10-11; `moon.yml` holds the tasks (`moon query tasks` lists them).
+jdx/mise was uninstalled on 2026-08-21; `moon.yml` holds the tasks (`moon query tasks` lists them).
 
 ```bash
 moon run deribit:check            # offline gate: lint + unit tests + contract tests + security
